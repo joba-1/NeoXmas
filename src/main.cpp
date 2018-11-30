@@ -1,74 +1,103 @@
 #include <Arduino.h>
 
 #include <Adafruit_NeoPixel.h>
-#include <math.h>
+#include <spark.h>
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ESP8266HTTPUpdateServer.h>
+
 #include <stdlib.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
-#include <WlanConfig.h>
 
-// Network stuff
-#define SSID             WlanConfig::Ssid
-#define PASS             WlanConfig::Password
-#define NAME             "NeoPendulum"
-#define VERSION          NAME " " __DATE__ " " __TIME__
+
+// Network stuff, might already be defined by the build tools
+#ifndef SSID
+  #define SSID      WlanConfig::Ssid
+#endif
+#ifndef PASS
+  #define PASS      WlanConfig::Password
+#endif
+#ifndef NAME
+  #define NAME      "NeoXmas"
+#endif
+#ifndef VERSION
+  #define VERSION   NAME " " __DATE__ " " __TIME__
+#endif
+#ifndef PORT
+  #define PORT      80
+#endif
+
 #define ONLINE_LED_PIN   D4
 
 // Neopixel stuff
 #define PIXEL_PIN        D5
 #define NUM_PIXELS       50
 #define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
-#define MAX_ACCEL_PIXELS (NUM_PIXELS/4)
-
-#define PENDULUM_COLOR   0x22ff22
-#define ACCEL_COLOR      0x880022
-#define BACKGROUND_COLOR 0x000022
 
 // Update interval. Increase, if you want to save time for other stuff...
 #define INTERVAL_MS      0
 
 // Change, if you modify eeprom_t in a backward incompatible way
-#define EEPROM_MAGIC     (0xabcd1234)
+#define EEPROM_MAGIC     (0xabcd1235)
 
 // EEPROM data
 typedef struct {
-  float phi0, g, l;
-  uint32_t pd, ac, bg, magic;
+  uint32_t mode;  // blink/animation mode
+  uint32_t magic; // verify eeprom data is ours
 } eeprom_t;
 
-// Physics data
-float Phi0, g, l, omega, s0, v0, a0;
-unsigned long T_ms, t0_ms;
+// Animation data
+typedef struct {
+    unsigned long t0;
+} animation_t;
 
-// Pendulum colors
-uint32_t pd_color;
-uint32_t ac_color;
-uint32_t bg_color;
+// Animation function
+typedef uint32_t (*animator_t)(unsigned long t, unsigned pixel);
+
+uint32_t mode;                 // current animation (index to animators[])
+unsigned long t0_ms;           // time when animation started
+animation_t pixel[NUM_PIXELS]; // animation data of each pixel
 
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM_PIXELS, PIXEL_PIN, NEO_CONFIG);
 
-ESP8266WebServer web_server(80);
+ESP8266WebServer web_server(PORT);
 
 ESP8266HTTPUpdateServer esp_updater;
 
 
-// Builtin default settings, used if Eeprom is erased or invalid
-void setupDefaults() {
-  Phi0 = (M_PI/8);       // Phi(max) = 22.5 degrees
-  l = 2.00;              // length in m
-  g = 9.81;              // g force in m/s^2
-  pd_color = PENDULUM_COLOR;
-  ac_color = ACCEL_COLOR;
-  bg_color = BACKGROUND_COLOR;
+// animation implementations
+
+// simple all white animation
+uint32_t all_white(unsigned long t, unsigned pixel) {
+    return 0xffffff;
 }
 
+
+// simple all black animation
+uint32_t all_white(unsigned long t, unsigned pixel) {
+    return 0x000000;
+}
+
+
+// list of animation functions defined above
+animator_t animators[] = {
+  // first entry is default (make it a nice one...)
+  all_white,
+  all_black
+};
+
+animator_t &animator = animators[0];   // current animation
+
+
+// Builtin default settings, used if Eeprom is erased or invalid
+void setupDefaults() {
+  mode = 0;   // first mode
+}
 
 // Erase saved settings
 void clearEeprom() {
@@ -80,7 +109,7 @@ void clearEeprom() {
 
 // Save current settings permanently
 void setEeprom() {
-  eeprom_t data { Phi0, g, l, pd_color, ac_color, bg_color, EEPROM_MAGIC };
+  eeprom_t data { mode, EEPROM_MAGIC };
   EEPROM.put(0, data);
   EEPROM.commit();
 }
@@ -91,12 +120,7 @@ void getEeprom() {
   eeprom_t data;
   EEPROM.get(0, data);
   if( data.magic == EEPROM_MAGIC ) {
-    Phi0 = data.phi0;
-    l = data.l;
-    g = data.g;
-    pd_color = data.pd;
-    ac_color = data.ac;
-    bg_color = data.bg;
+    mode = data.mode;
   }
 }
 
@@ -111,14 +135,9 @@ void wifiSetup() {
 }
 
 
-// Call this after g or l have been changed
-void setupPhysics() {
-  omega = sqrt(g/l);
-  s0 = l * Phi0;
-  v0 = s0 * omega;
-  a0 = v0 * omega;
-  float T = 2 * M_PI / omega;
-  T_ms = (unsigned long)(T * 1000);
+// Call this after mode has been changed to setup new animation
+void setupAnimation() {
+  animator = animators[mode >= sizeof(animators)/sizeof(*animators) ? mode : 0];
 }
 
 
@@ -137,11 +156,11 @@ void webserverSetup() {
     ESP.restart();
   });
 
-  // Call this page to clear the saved settings (physics and color)
+  // Call this page to clear the saved settings (animation mode)
   web_server.on("/clear", []() {
     clearEeprom();
     setupDefaults();
-    setupPhysics();
+    setupAnimation();
     web_server.send(200, "text/plain", "ok: cleared\n");
   });
 
@@ -155,12 +174,7 @@ void webserverSetup() {
 
     // Supported parameters
     arg_t args[] = {
-      { "phi", 'f', &Phi0     },
-      { "g",   'f', &g        },
-      { "l",   'f', &l        },
-      { "p",   'u', &pd_color },
-      { "a",   'u', &ac_color },
-      { "b",   'u', &bg_color } };
+      { "mode", 'u', &mode    } };
 
     bool ok = true;    // So far all processed URI parameters were ok
     int processed = 0; // Count processed URI parameters
@@ -170,13 +184,10 @@ void webserverSetup() {
       JsonObject& root = jsonBuffer.createObject();
       root["version"] = VERSION;
       JsonObject& cfg = root.createNestedObject("cfg");
-      cfg["phi"] = Phi0;
-      cfg["l"] = l;
-      cfg["g"] = g;
-      JsonObject& color = cfg.createNestedObject("colors");
-      color["p"] = pd_color;
-      color["a"] = ac_color;
-      color["b"] = bg_color;
+      cfg["mode"] = mode;
+      // cfg["l"] = l;
+      // JsonObject& color = cfg.createNestedObject("colors");
+      // color["p"] = pd_color;
       String msg;
       root.printTo(msg);
       web_server.send(200, "application/json", msg);
@@ -201,7 +212,7 @@ void webserverSetup() {
 
       // Use and save new values only if all parameters were processed and ok
       if( ok && processed == web_server.args() ) {
-        setupPhysics();
+        setupAnimation();
         setEeprom();
         web_server.send(200, "text/plain", "ok: saved\n");
       }
@@ -227,7 +238,7 @@ void webserverSetup() {
 
   web_server.begin();
 
-  MDNS.addService("http", "tcp", 80);
+  MDNS.addService("http", "tcp", PORT);
 }
 
 
@@ -263,30 +274,13 @@ void updaterHandle() {
 }
 
 
-// Set pendulum pixels according to physics data
-void set_pendulum_pixels( float s, float a ) {
+// Set pixels according to animation data
+void set_animation_pixels( unsigned long t ) {
   unsigned long pixel_color;
-  unsigned upper_limit, lower_limit;
-
-  unsigned pendulum_pos = (unsigned)round(s);   // Pendulum pixel, begin of acc
-  unsigned accel_pos    = (unsigned)round(s+a); // Last acceleration line pixel
 
   // Recalculate and set colors of all pixels
   for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
-    if( pixel == pendulum_pos ) {
-      pixel_color = pd_color;
-    }
-    else {
-      lower_limit = min(accel_pos, pendulum_pos);
-      upper_limit = max(accel_pos, pendulum_pos);
-      if( (pixel > lower_limit) && (pixel < upper_limit) ) {
-        pixel_color = ac_color;
-      }
-      else {
-        pixel_color = bg_color;
-      }
-    }
-
+    pixel_color = (*animator)(t, pixel);
     pixels.setPixelColor(pixel, pixel_color);
   }
 }
@@ -304,7 +298,7 @@ void setup() {
   pixels.setBrightness(255);
 
   // Simple neopixel test
-  uint32_t colors[] = { 0x000000, 0xff0000, 0x00ff00, 0x0000ff };
+  uint32_t colors[] = { 0x000000, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 };
   for( size_t color=0; color<sizeof(colors)/sizeof(*colors); color++ ) {
     for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
       pixels.setPixelColor(color&1 ? NUM_PIXELS-1-pixel : pixel, colors[color]);
@@ -317,42 +311,26 @@ void setup() {
   setupDefaults();
   EEPROM.begin(sizeof(eeprom_t));
   getEeprom();
-  setupPhysics();
-  t0_ms = millis();
+  setupAnimation();
 
   Serial.println("\nBooted " VERSION);
 }
 
 
-// Worker loop, updates pendulum physics data and displays it on neopixels
+// Worker loop, updates animation data and displays it on neopixels
 void loop() {
   unsigned long t_ms = millis();
 
   // Online web update
   updaterHandle();
 
-  // Make sure t is between 0 and T to avoid overflow problems
-  while( T_ms < (t_ms - t0_ms) ) {
-    t0_ms += T_ms;
-  }
-
-  // Calcuate new pendulum values
-  float t = (t_ms - t0_ms) / 1000.0;
-  float s = s0 * sin(omega*t - Phi0);
-  // float v = v0 * cos(omega*t - Phi0);
-  float a = a0 * -sin(omega*t - Phi0);
-
-  // Transfer new pendulum values to neopixels (position and acceleration bar)
-  set_pendulum_pixels(
-     s / s0 * (NUM_PIXELS-1)/2.0 + (NUM_PIXELS-1)/2.0,
-     a / a0 * MAX_ACCEL_PIXELS);
+  // Calcuate new animation values
+  set_animation_pixels(t_ms);
 
   // Update neopixel strip
   pixels.show();
 
   // Keep constant loop interval, if possible
   unsigned long wait_ms = INTERVAL_MS + t_ms - millis();
-  if( wait_ms <= INTERVAL_MS ) {
-    delay(wait_ms);
-  }
+  delay(wait_ms <= INTERVAL_MS ? wait_ms : 0); // delay(0) reduces power?
 }
