@@ -15,6 +15,9 @@
 
 
 // Network stuff, might already be defined by the build tools
+#ifdef WLANCONFIG
+  #include <WlanConfig.h>
+#endif
 #ifndef SSID
   #define SSID      WlanConfig::Ssid
 #endif

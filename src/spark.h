@@ -19,7 +19,7 @@ public:
   virtual bool get( uint16_t part, color_t &color ) const;
 
   virtual void reset();
-  virtual void setLimit( uint16_t limit );
+  void setLimit( uint16_t limit );
 
 protected:
   color_t  _color;
@@ -43,10 +43,10 @@ public:
   themedSpark( uint16_t limit = 0xf000 );
   void reset();
 
-  static void setTheme( color_t colors[], uint16_t numColors );
+  static void setTheme( const color_t colors[], uint16_t numColors );
 
 private:
-  static color_t *_colors;
+  static const color_t *_colors;
   static uint16_t _numColors;
 };
 

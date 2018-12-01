@@ -54,7 +54,7 @@ void randomSpark::reset() {
 }
 
 
-themedSpark::color_t *themedSpark::_colors = 0;
+const themedSpark::color_t *themedSpark::_colors = 0;
 uint16_t themedSpark::_numColors = 0;
 
 themedSpark::themedSpark( uint16_t limit ) : baseSpark(limit) {
@@ -70,7 +70,7 @@ void themedSpark::reset() {
   }
 }
 
-void themedSpark::setTheme( color_t colors[], uint16_t numColors ) {
+void themedSpark::setTheme( const color_t colors[], uint16_t numColors ) {
   _colors = colors;
   _numColors = numColors;
 }
