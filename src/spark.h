@@ -56,17 +56,21 @@ class timedSpark {
 public:
   typedef baseSpark::color_t color_t;
 
-  timedSpark( baseSpark &spark, uint16_t ms, uint16_t intervals = 1 );
+  timedSpark();
+  timedSpark( baseSpark *pSpark, uint16_t ms, uint16_t intervals = 1 );
 
   // Resets spark, if intervals are over.
   // Returns color for current time in interval or false if sparks get() fails
   bool get( color_t &color );
 
+  // configure the spark to handle
+  void setSpark( baseSpark *pSpark, uint16_t ms, uint16_t intervals = 1 );
+
 private:
-  baseSpark &_spark;
-  uint32_t _started;
+  baseSpark *_pSpark;
   uint16_t _ms;
   uint16_t _intervals;
+  uint32_t _started;
 };
 
 

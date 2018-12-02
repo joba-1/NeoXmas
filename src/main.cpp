@@ -55,16 +55,18 @@ typedef struct {
 
 // Animation data
 typedef struct {
-    unsigned long t0;
+    timedSpark spark;
 } animation_t;
 
 // Animation function
 typedef uint32_t (*animator_t)(unsigned long t, unsigned pixel);
 
-uint32_t mode;                 // current animation (index to animators[])
-unsigned long t0_ms;           // time when animation started
-animation_t pixel[NUM_PIXELS]; // animation data of each pixel
+uint32_t mode;                     // current animation (index to animators[])
+uint32_t prevMode;                 // previous loop animation
 
+animation_t pixelData[NUM_PIXELS]; // animation data of each pixel
+themedSpark themedSparks[NUM_PIXELS];
+randomSpark randomSparks[NUM_PIXELS];
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM_PIXELS, PIXEL_PIN, NEO_CONFIG);
 
@@ -77,19 +79,84 @@ ESP8266HTTPUpdateServer esp_updater;
 
 // simple all white animation
 uint32_t all_white(unsigned long t, unsigned pixel) {
-    return 0xffffff;
+  return 0xffffff;
 }
 
 
 // simple all black animation
-uint32_t all_white(unsigned long t, unsigned pixel) {
-    return 0x000000;
+uint32_t all_black(unsigned long t, unsigned pixel) {
+  return 0x000000;
+}
+
+
+// theme1 spark animation
+uint32_t theme1_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0,    0,    0},
+    {0,    0xff, 0},
+    {0xff, 0xff, 0xff}
+  };
+
+  themedSpark::color_t color;
+
+  if( prevMode != mode ) {
+    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
+    themedSparks[pixel].reset();
+    pixelData[pixel].spark.setSpark(&themedSparks[pixel], 1000);
+  }
+  if( pixelData[pixel].spark.get(color) ) {
+    return color.r << 16 & color.g << 8 & color.b;
+  }
+
+  return 0x000000;
+}
+
+
+// theme2 spark animation
+uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0xff, 0, 0},
+    {0xff, 0, 0xff},
+    {0,    0, 0xff}
+  };
+
+  themedSpark::color_t color;
+
+  if( prevMode != mode ) {
+    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
+    themedSparks[pixel].reset();
+    pixelData[pixel].spark.setSpark(&themedSparks[pixel], 1000);
+  }
+  if( pixelData[pixel].spark.get(color) ) {
+    return color.r << 16 & color.g << 8 & color.b;
+  }
+
+  return 0x000000;
+}
+
+
+// random spark animation
+uint32_t random_sparks(unsigned long t, unsigned pixel) {
+  randomSpark::color_t color;
+
+  if( prevMode != mode ) {
+    randomSparks[pixel].reset();
+    pixelData[pixel].spark.setSpark(&randomSparks[pixel], 1000);
+  }
+  if( pixelData[pixel].spark.get(color) ) {
+    return color.r << 16 & color.g << 8 & color.b;
+  }
+
+  return 0x000000;
 }
 
 
 // list of animation functions defined above
 animator_t animators[] = {
   // first entry is default (make it a nice one...)
+  theme1_sparks,
+  theme2_sparks,
+  random_sparks,
   all_white,
   all_black
 };
@@ -99,7 +166,8 @@ animator_t &animator = animators[0];   // current animation
 
 // Builtin default settings, used if Eeprom is erased or invalid
 void setupDefaults() {
-  mode = 0;   // first mode
+  mode = 0;            // first mode
+  prevMode = mode - 1; // different from mode forces mode init
 }
 
 // Erase saved settings
@@ -286,6 +354,8 @@ void set_animation_pixels( unsigned long t ) {
     pixel_color = (*animator)(t, pixel);
     pixels.setPixelColor(pixel, pixel_color);
   }
+
+  prevMode = mode;
 }
 
 

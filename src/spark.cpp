@@ -76,21 +76,30 @@ void themedSpark::setTheme( const color_t colors[], uint16_t numColors ) {
 }
 
 
-timedSpark::timedSpark( baseSpark &spark, uint16_t ms, uint16_t intervals )
-: _spark(spark), _ms(ms), _intervals(intervals) {
-  _started = millis();
+timedSpark::timedSpark() : _pSpark(0), _ms(0), _intervals(0), _started(0) {
+}
+
+timedSpark::timedSpark( baseSpark *pSpark, uint16_t ms, uint16_t intervals ) {
+  setSpark(pSpark, ms, intervals);
 }
 
 bool timedSpark::get( color_t &color ) {
-  if( !_ms ) {
+  if( !_pSpark || !_ms ) {
     color.r = color.g = color.b = 0xff;
     return true;
   }
 
   uint32_t now = millis();
   if( _intervals && (now - _started) / _ms >= _intervals ) {
-    _spark.reset();
+    _pSpark->reset();
   }
 
-  return _spark.get(map((now - _started) % _ms, 0, _ms, 0, 0xffff), color);
+  return _pSpark->get(map((now - _started) % _ms, 0, _ms, 0, 0xffff), color);
+}
+
+void timedSpark::setSpark( baseSpark *pSpark, uint16_t ms, uint16_t intervals ) {
+  _pSpark = pSpark;
+  _ms = ms;
+  _intervals = intervals;
+  _started = millis();
 }
