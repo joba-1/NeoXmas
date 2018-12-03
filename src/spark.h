@@ -3,8 +3,9 @@
 #define _spark_h
 
 #include <Arduino.h>
-#include <cstdlib>
 
+// when in the range of 0-0xffff the spark reaches its color and begins to turn white
+#define SPARK_LIMIT 0xf000
 
 // A spark defines a target color to blend to from black for range values between 0 and limit
 // and on to white from limit to uint16_max
@@ -12,7 +13,7 @@ class baseSpark {
 public:
   typedef struct { uint8_t r, g, b; } color_t;
 
-  baseSpark( uint16_t limit = 0xf000, color_t color = {0xff, 0xff, 0xff} );
+  baseSpark( uint16_t limit = SPARK_LIMIT, color_t color = {0xff, 0xff, 0xff} );
   virtual ~baseSpark();
 
   // return the color blend mapped to the given partial interval value (between 0 and uint16_max)
@@ -32,7 +33,7 @@ private:
 // A spark with a random rainbow color (i.e one of rgb colors is max, one random and one 0)
 class randomSpark : public baseSpark {
 public:
-  randomSpark( uint16_t limit = 0xf000 );
+  randomSpark( uint16_t limit = SPARK_LIMIT );
   void reset();
 };
 
@@ -40,7 +41,7 @@ public:
 // A spark with a random color out of a given array of colors (theme)
 class themedSpark : public baseSpark {
 public:
-  themedSpark( uint16_t limit = 0xf000 );
+  themedSpark( uint16_t limit = SPARK_LIMIT );
   void reset();
 
   static void setTheme( const color_t colors[], uint16_t numColors );
@@ -68,6 +69,7 @@ public:
 
 private:
   baseSpark *_pSpark;
+  uint16_t _msMin;
   uint16_t _ms;
   uint16_t _intervals;
   uint32_t _started;

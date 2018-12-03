@@ -42,7 +42,9 @@
 #define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
 
 // Update interval. Increase, if you want to save time for other stuff...
-#define INTERVAL_MS      0
+#define INTERVAL_MS       0
+// Min and max/2 time for one full animation circle of a led
+#define CIRCLE_MS     10000
 
 // Change, if you modify eeprom_t in a backward incompatible way
 #define EEPROM_MAGIC     (0xabcd1235)
@@ -92,30 +94,7 @@ uint32_t all_black(unsigned long t, unsigned pixel) {
 // theme1 spark animation
 uint32_t theme1_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
-    {0,    0,    0},
-    {0,    0xff, 0},
-    {0xff, 0xff, 0xff}
-  };
-
-  themedSpark::color_t color;
-
-  if( prevMode != mode ) {
-    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
-    themedSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&themedSparks[pixel], 1000);
-  }
-  if( pixelData[pixel].spark.get(color) ) {
-    return color.r << 16 & color.g << 8 & color.b;
-  }
-
-  return 0x000000;
-}
-
-
-// theme2 spark animation
-uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
-  static const baseSpark::color_t colors[] = {
-    {0xff, 0, 0},
+    {0xff, 0xff, 0},
     {0xff, 0, 0xff},
     {0,    0, 0xff}
   };
@@ -125,10 +104,37 @@ uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
   if( prevMode != mode ) {
     themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
     themedSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&themedSparks[pixel], 1000);
+    pixelData[pixel].spark.setSpark(&themedSparks[pixel], CIRCLE_MS);
   }
   if( pixelData[pixel].spark.get(color) ) {
-    return color.r << 16 & color.g << 8 & color.b;
+    uint32_t col = color.r << 16 | color.g << 8 | color.b;
+    //Serial.printf("Theme 1 p0 %06x = %02x-%02x-%02x\n", col, color.r, color.g, color.b);
+    return col;
+  }
+
+  return 0x000000;
+}
+
+
+// theme2 spark animation
+uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0xff,    0,    0},
+    {0,    0xff, 0},
+    {0xff, 0xff, 0xff}
+  };
+
+  themedSpark::color_t color;
+
+  if( prevMode != mode ) {
+    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
+    themedSparks[pixel].reset();
+    pixelData[pixel].spark.setSpark(&themedSparks[pixel], CIRCLE_MS);
+  }
+  if( pixelData[pixel].spark.get(color) ) {
+    uint32_t col = color.r << 16 | color.g << 8 | color.b;
+    //Serial.printf("Theme 2 p0 %06x = %02x-%02x-%02x\n", col, color.r, color.g, color.b);
+    return col;
   }
 
   return 0x000000;
@@ -138,13 +144,14 @@ uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
 // random spark animation
 uint32_t random_sparks(unsigned long t, unsigned pixel) {
   randomSpark::color_t color;
-
   if( prevMode != mode ) {
     randomSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&randomSparks[pixel], 1000);
+    pixelData[pixel].spark.setSpark(&randomSparks[pixel], CIRCLE_MS);
   }
   if( pixelData[pixel].spark.get(color) ) {
-    return color.r << 16 & color.g << 8 & color.b;
+    uint32_t col = color.r << 16 | color.g << 8 | color.b;
+    //Serial.printf("Random p0 %06x = %02x-%02x-%02x\n", col, color.r, color.g, color.b);
+    return col;
   }
 
   return 0x000000;
@@ -208,7 +215,7 @@ void wifiSetup() {
 
 // Call this after mode has been changed to setup new animation
 void setupAnimation() {
-  animator = animators[mode >= sizeof(animators)/sizeof(*animators) ? mode : 0];
+  animator = animators[mode < sizeof(animators)/sizeof(*animators) ? mode : 0];
 }
 
 
@@ -352,6 +359,7 @@ void set_animation_pixels( unsigned long t ) {
   // Recalculate and set colors of all pixels
   for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
     pixel_color = (*animator)(t, pixel);
+    // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
     pixels.setPixelColor(pixel, pixel_color);
   }
 
