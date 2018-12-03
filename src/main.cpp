@@ -51,8 +51,9 @@
 
 // EEPROM data
 typedef struct {
-  uint32_t mode;  // blink/animation mode
-  uint32_t magic; // verify eeprom data is ours
+  uint32_t mode;      // blink/animation mode
+  uint32_t msCircle;  // min ms for an animation circle
+  uint32_t magic;     // verify eeprom data is ours
 } eeprom_t;
 
 // Animation data
@@ -64,6 +65,7 @@ typedef struct {
 typedef uint32_t (*animator_t)(unsigned long t, unsigned pixel);
 
 uint32_t mode;                     // current animation (index to animators[])
+uint32_t msCircle;                 // min ms for an animation circle
 uint32_t prevMode;                 // previous loop animation
 
 animation_t pixelData[NUM_PIXELS]; // animation data of each pixel
@@ -91,21 +93,16 @@ uint32_t all_black(unsigned long t, unsigned pixel) {
 }
 
 
-// theme1 spark animation
-uint32_t theme1_sparks(unsigned long t, unsigned pixel) {
-  static const baseSpark::color_t colors[] = {
-    {0xff, 0xff, 0},
-    {0xff, 0, 0xff},
-    {0,    0, 0xff}
-  };
-
+// theme spark animation
+uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t colors, size_t numColors ) {
   themedSpark::color_t color;
 
   if( prevMode != mode ) {
-    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
+    themedSpark::setTheme(colors, numColors);
     themedSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&themedSparks[pixel], CIRCLE_MS);
+    pixelData[pixel].spark.setSpark(&themedSparks[pixel], msCircle);
   }
+
   if( pixelData[pixel].spark.get(color) ) {
     uint32_t col = color.r << 16 | color.g << 8 | color.b;
     //Serial.printf("Theme 1 p0 %06x = %02x-%02x-%02x\n", col, color.r, color.g, color.b);
@@ -116,28 +113,52 @@ uint32_t theme1_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// theme2 spark animation
-uint32_t theme2_sparks(unsigned long t, unsigned pixel) {
+// theme red-violet-blue spark animation
+uint32_t theme_red_violet_blue_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0xff, 0, 0},
+    {0xff, 0, 0xff},
+    {0,    0, 0xff}
+  };
+
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
+}
+
+
+// theme red-green-white spark animation
+uint32_t theme_red_green_white_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff,    0,    0},
     {0,    0xff, 0},
     {0xff, 0xff, 0xff}
   };
 
-  themedSpark::color_t color;
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
+}
 
-  if( prevMode != mode ) {
-    themedSpark::setTheme(colors, sizeof(colors)/sizeof(*colors));
-    themedSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&themedSparks[pixel], CIRCLE_MS);
-  }
-  if( pixelData[pixel].spark.get(color) ) {
-    uint32_t col = color.r << 16 | color.g << 8 | color.b;
-    //Serial.printf("Theme 2 p0 %06x = %02x-%02x-%02x\n", col, color.r, color.g, color.b);
-    return col;
-  }
 
-  return 0x000000;
+// theme gold-blue-cyan-green spark animation
+uint32_t theme_gold_blue_cyan_green_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0xcc, 0x9b, 0x29},
+    {0,    0,    0xff},
+    {0,    0xff, 0xff},
+    {0,    0xff, 0}
+  };
+
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
+}
+
+
+// theme blue-green-cyan spark animation
+uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0, 0,    0xff},
+    {0, 0xff, 0},
+    {0, 0xff, 0xff}
+  };
+
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
 }
 
 
@@ -146,7 +167,7 @@ uint32_t random_sparks(unsigned long t, unsigned pixel) {
   randomSpark::color_t color;
   if( prevMode != mode ) {
     randomSparks[pixel].reset();
-    pixelData[pixel].spark.setSpark(&randomSparks[pixel], CIRCLE_MS);
+    pixelData[pixel].spark.setSpark(&randomSparks[pixel], msCircle);
   }
   if( pixelData[pixel].spark.get(color) ) {
     uint32_t col = color.r << 16 | color.g << 8 | color.b;
@@ -161,8 +182,10 @@ uint32_t random_sparks(unsigned long t, unsigned pixel) {
 // list of animation functions defined above
 animator_t animators[] = {
   // first entry is default (make it a nice one...)
-  theme1_sparks,
-  theme2_sparks,
+  theme_red_violet_blue_sparks,
+  theme_red_green_white_sparks,
+  theme_gold_blue_cyan_green_sparks,
+  theme_green_blue_cyan_sparks,
   random_sparks,
   all_white,
   all_black
@@ -173,8 +196,9 @@ animator_t &animator = animators[0];   // current animation
 
 // Builtin default settings, used if Eeprom is erased or invalid
 void setupDefaults() {
-  mode = 0;            // first mode
-  prevMode = mode - 1; // different from mode forces mode init
+  mode = 0;             // first mode
+  prevMode = mode - 1;  // different from mode forces mode init
+  msCircle = CIRCLE_MS; // default min animation circle time
 }
 
 // Erase saved settings
@@ -199,6 +223,7 @@ void getEeprom() {
   EEPROM.get(0, data);
   if( data.magic == EEPROM_MAGIC ) {
     mode = data.mode;
+    msCircle = data.msCircle;
   }
 }
 
@@ -252,7 +277,8 @@ void webserverSetup() {
 
     // Supported parameters
     arg_t args[] = {
-      { "mode", 'u', &mode    } };
+      { "mode",   'u', &mode     },
+      { "circle", 'u', &msCircle } };
 
     bool ok = true;    // So far all processed URI parameters were ok
     int processed = 0; // Count processed URI parameters
@@ -263,6 +289,7 @@ void webserverSetup() {
       root["version"] = VERSION;
       JsonObject& cfg = root.createNestedObject("cfg");
       cfg["mode"] = mode;
+      cfg["circle"] = msCircle;
       // cfg["l"] = l;
       // JsonObject& color = cfg.createNestedObject("colors");
       // color["p"] = pd_color;
