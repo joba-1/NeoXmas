@@ -94,7 +94,7 @@ uint32_t all_black(unsigned long t, unsigned pixel) {
 
 
 // theme spark animation
-uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t colors, size_t numColors ) {
+uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t colors[], size_t numColors ) {
   themedSpark::color_t color;
 
   if( prevMode != mode ) {
