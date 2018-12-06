@@ -272,7 +272,7 @@ void send_menu() {
     "    <form action=\"cfg\">\n"
     "      <label for=\"mode\">Mode:\n"
     "        <select name=\"mode\">\n"
-    "          <option %svalue=\"0\">Sparks </p>red-violet-blue</option>\n"
+    "          <option %svalue=\"0\">Sparks red-violet-blue</option>\n"
     "          <option %svalue=\"1\">Sparks red-green</option>\n"
     "          <option %svalue=\"2\">Sparks yellow-blue</option>\n"
     "          <option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
