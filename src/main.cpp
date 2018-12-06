@@ -189,6 +189,43 @@ uint32_t random_sparks(unsigned long t, unsigned pixel) {
 }
 
 
+// moving rainbow
+uint32_t rainbow(unsigned long t, unsigned pixel) {
+  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
+  uint32_t part = (t + msOffset*pixel) % msCircle; // pixel time in circle
+  uint32_t segment = msCircle / 6; // size of 6 color time segments
+  uint32_t fade; // value of fading color
+
+  if( part < segment ) { // cyan -> blue
+    fade = 0xffff - (0xffff * part) / segment;
+    return ((fade*fade)>>24) << 8 | 0xff;
+  }
+  part -= segment;
+  if( part < segment ) { // blue -> violet
+    fade = (0xffff * part) / segment;
+    return ((fade*fade)>>24) << 16 | 0xff;
+  }
+  part -= segment;
+  if( part < segment ) { // violet -> red
+    fade = 0xffff - (0xffff * part) / segment;
+    return 0xff << 16 | (fade*fade)>>24;
+  }
+  part -= segment;
+  if( part < segment ) { // red -> yellow
+    fade = (0xffff * part) / segment;
+    return 0xff << 16 | ((fade*fade)>>24) << 8;
+  }
+  part -= segment;
+  if( part < segment ) { // yellow -> green
+    fade = 0xffff - (0xffff * part) / segment;
+    return ((fade*fade)>>24) << 16 | 0xff;
+  }
+  // green -> cyan
+  fade = (0xffff * part) / segment;
+  return 0xff << 8 | (fade*fade)>>24;
+}
+
+
 // list of animation functions defined above
 animator_t animators[] = {
   // first entry is default (make it a nice one...)
@@ -198,6 +235,7 @@ animator_t animators[] = {
   theme_green_blue_cyan_sparks,
   random_sparks,
   theme_white_sparks,
+  rainbow,
   all_white,
   all_black
 };
@@ -278,8 +316,9 @@ void send_menu() {
     "          <option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
     "          <option %svalue=\"4\">Sparks random</option>\n"
     "          <option %svalue=\"5\">Sparks white</option>\n"
-    "          <option %svalue=\"6\">On</option>\n"
-    "          <option %svalue=\"7\">Off</option>\n"
+    "          <option %svalue=\"6\">Rainbow</option>\n"
+    "          <option %svalue=\"7\">On</option>\n"
+    "          <option %svalue=\"8\">Off</option>\n"
     "        </select>\n"
     "      </label></p>\n"
     "      <label for=\"circle\">Animation Speed:\n"
@@ -311,7 +350,7 @@ void send_menu() {
 
   snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
     mode==2?sel:"", mode==3?sel:"", mode==4?sel:"",
-    mode==5?sel:"", mode==6?sel:"", mode==7?sel:"",
+    mode==5?sel:"", mode==6?sel:"", mode==7?sel:"", mode==8?sel:"",
     msCircle==100?sel:"", msCircle==500?sel:"", msCircle==1000?sel:"",
     msCircle==4000?sel:"", msCircle==10000?sel:"", msCircle==20000?sel:"",
     msCircle==60000?sel:""
