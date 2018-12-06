@@ -162,6 +162,16 @@ uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
 }
 
 
+// theme white spark animation
+uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0, 0, 0}
+  };
+
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
+}
+
+
 // random spark animation
 uint32_t random_sparks(unsigned long t, unsigned pixel) {
   randomSpark::color_t color;
@@ -187,6 +197,7 @@ animator_t animators[] = {
   theme_gold_blue_cyan_green_sparks,
   theme_green_blue_cyan_sparks,
   random_sparks,
+  theme_white_sparks,
   all_white,
   all_black
 };
