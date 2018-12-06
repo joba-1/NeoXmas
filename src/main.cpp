@@ -222,7 +222,7 @@ void clearEeprom() {
 
 // Save current settings permanently
 void setEeprom() {
-  eeprom_t data { mode, EEPROM_MAGIC };
+  eeprom_t data { mode, msCircle, EEPROM_MAGIC };
   EEPROM.put(0, data);
   EEPROM.commit();
 }
@@ -252,6 +252,72 @@ void wifiSetup() {
 // Call this after mode has been changed to setup new animation
 void setupAnimation() {
   animator = animators[mode < sizeof(animators)/sizeof(*animators) ? mode : 0];
+}
+
+
+// default html menu page
+void send_menu() {
+  static const char form[] = "<!doctype html>\n"
+    "<html lang=\"en\">\n"
+    "  <head>\n"
+    "    <meta charset=\"utf-8\">\n"
+    "    <meta name=\"description\" content=\"NeoXmas Web Remote Control\">\n"
+    "    <meta name=\"keywords\" content=\"NeoXmas, neopixel, remote, meta\">\n"
+    // "    <link rel=\"stylesheet\" href=\"css\">\n"
+    "    <title>NeoXmas Web Remote Control</title>\n"
+    "  </head>\n"
+    "  <body>\n"
+    "    <h1>NeoXmas Web Remote Control</h1>\n"
+    "    <p>Control the Xmas Neopixel Strip Animations</p>\n"
+    "    <form action=\"cfg\">\n"
+    "      <label for=\"mode\">Mode:\n"
+    "        <select name=\"mode\">\n"
+    "          <option %svalue=\"0\">Sparks </p>red-violet-blue</option>\n"
+    "          <option %svalue=\"1\">Sparks red-green</option>\n"
+    "          <option %svalue=\"2\">Sparks yellow-blue</option>\n"
+    "          <option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
+    "          <option %svalue=\"4\">Sparks random</option>\n"
+    "          <option %svalue=\"5\">Sparks white</option>\n"
+    "          <option %svalue=\"6\">On</option>\n"
+    "          <option %svalue=\"7\">Off</option>\n"
+    "        </select>\n"
+    "      </label></p>\n"
+    "      <label for=\"circle\">Animation Speed:\n"
+    "        <select name=\"circle\">\n"
+    "          <option %svalue=\"100\">Super fast</option>\n"
+    "          <option %svalue=\"500\">Very fast</option>\n"
+    "          <option %svalue=\"1000\">Fast</option>\n"
+    "          <option %svalue=\"4000\">Normal</option>\n"
+    "          <option %svalue=\"10000\">Slow</option>\n"
+    "          <option %svalue=\"20000\">Very slow</option>\n"
+    "          <option %svalue=\"60000\">Super slow</option>\n"
+    "        </select>\n"
+    "      </label></p>\n"
+    "      <button>Configure</button>\n"
+    "    </form></p>\n"
+    "    <form action=\"/reset\">\n"
+    "      <button>Reset</button>\n"
+    "    </form></p>\n"
+    "    <form action=\"/clear\">\n"
+    "      <button>Clear</button>\n"
+    "    </form></p>\n"
+    "    <form action=\"/version\">\n"
+    "      <button>Version</button>\n"
+    "    </form></p>\n"
+    "  </body>\n"
+    "</html>\n";
+  static const char sel[] = "selected ";
+  static char page[sizeof(form)+3*10];
+
+  snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
+    mode==2?sel:"", mode==3?sel:"", mode==4?sel:"",
+    mode==5?sel:"", mode==6?sel:"", mode==7?sel:"",
+    msCircle==100?sel:"", msCircle==500?sel:"", msCircle==1000?sel:"",
+    msCircle==4000?sel:"", msCircle==10000?sel:"", msCircle==20000?sel:"",
+    msCircle==60000?sel:""
+  );
+
+  web_server.send(200, "text/html", page);
 }
 
 
@@ -330,7 +396,7 @@ void webserverSetup() {
       if( ok && processed == web_server.args() ) {
         setupAnimation();
         setEeprom();
-        web_server.send(200, "text/plain", "ok: saved\n");
+        send_menu();
       }
       else {
         // Dont use the parameters. Give a hint on what went wrong
@@ -343,6 +409,11 @@ void webserverSetup() {
         web_server.send(400, "text/plain", msg + "\n");
       }
     }
+  });
+
+  // This page configures all settings (/cfg?name=value{&name=value...})
+  web_server.on("/", []() {
+    send_menu();
   });
 
   // Catch all page, gives a hint on valid URLs
