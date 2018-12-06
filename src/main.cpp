@@ -307,7 +307,7 @@ void send_menu() {
     "  </body>\n"
     "</html>\n";
   static const char sel[] = "selected ";
-  static char page[sizeof(form)+3*10];
+  static char page[sizeof(form)+15*sizeof(sel)];
 
   snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
     mode==2?sel:"", mode==3?sel:"", mode==4?sel:"",
