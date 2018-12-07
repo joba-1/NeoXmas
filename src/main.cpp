@@ -218,8 +218,9 @@ uint32_t rainbow(unsigned long t, unsigned pixel) {
   part -= segment;
   if( part < segment ) { // yellow -> green
     fade = 0xffff - (0xffff * part) / segment;
-    return ((fade*fade)>>24) << 16 | 0xff;
+    return ((fade*fade)>>24) << 16 | 0xff << 8;
   }
+  part -= segment;
   // green -> cyan
   fade = (0xffff * part) / segment;
   return 0xff << 8 | (fade*fade)>>24;
