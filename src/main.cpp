@@ -79,21 +79,21 @@ ESP8266WebServer web_server(PORT);
 ESP8266HTTPUpdateServer esp_updater;
 
 
-// animation implementations
+// Animation implementations
 
-// simple all white animation
+// Simple all white animation
 uint32_t all_white(unsigned long t, unsigned pixel) {
   return 0xffffff;
 }
 
 
-// simple all black animation
+// Simple all black animation
 uint32_t all_black(unsigned long t, unsigned pixel) {
   return 0x000000;
 }
 
 
-// theme spark animation
+// Theme spark animation
 uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t colors[], size_t numColors ) {
   themedSpark::color_t color;
 
@@ -113,7 +113,7 @@ uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t 
 }
 
 
-// theme red-violet-blue spark animation
+// Theme red-violet-blue spark animation
 uint32_t theme_red_violet_blue_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff, 0, 0},
@@ -125,7 +125,7 @@ uint32_t theme_red_violet_blue_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// theme red-green-white spark animation
+// Theme red-green-white spark animation
 uint32_t theme_red_green_white_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff,    0,    0},
@@ -137,7 +137,7 @@ uint32_t theme_red_green_white_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// theme gold-blue-cyan-green spark animation
+// Theme gold-blue-cyan-green spark animation
 uint32_t theme_gold_blue_cyan_green_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xcc, 0x9b, 0x29},
@@ -150,7 +150,7 @@ uint32_t theme_gold_blue_cyan_green_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// theme blue-green-cyan spark animation
+// Theme blue-green-cyan spark animation
 uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0, 0,    0xff},
@@ -162,7 +162,7 @@ uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// theme white spark animation
+// Theme white spark animation
 uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0, 0, 0}
@@ -172,7 +172,7 @@ uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// random spark animation
+// Random spark animation
 uint32_t random_sparks(unsigned long t, unsigned pixel) {
   randomSpark::color_t color;
   if( prevMode != mode ) {
@@ -189,10 +189,9 @@ uint32_t random_sparks(unsigned long t, unsigned pixel) {
 }
 
 
-// moving rainbow
+// Rainbow
 uint32_t rainbow(unsigned long t, unsigned pixel) {
-  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
-  uint32_t part = (t + msOffset*pixel) % msCircle; // pixel time in circle
+  uint32_t part = t % msCircle; // time in circle
   uint32_t segment = msCircle / 6; // size of 6 color time segments
   uint32_t fade; // value of fading color
 
@@ -227,9 +226,43 @@ uint32_t rainbow(unsigned long t, unsigned pixel) {
 }
 
 
-// list of animation functions defined above
+// Rainbow reversed
+uint32_t rainbow_reversed(unsigned long t, unsigned pixel) {
+  return rainbow(msCircle - 1 - t % msCircle, pixel); // time in circle, reversed
+}
+
+
+// Moving rainbow
+uint32_t rainbow_moving(unsigned long t, unsigned pixel) {
+  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
+  return rainbow((t + msOffset*pixel) % msCircle, pixel);
+}
+
+
+// Moving rainbow in reversed direction
+uint32_t rainbow_moving_reversed(unsigned long t, unsigned pixel) {
+  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
+  return rainbow_reversed((t + msOffset*pixel) % msCircle, pixel);
+}
+
+
+// Moving rainbow backwards
+uint32_t rainbow_moving_back(unsigned long t, unsigned pixel) {
+  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
+  return rainbow((t - msOffset*pixel) % msCircle, pixel);
+}
+
+
+// Moving rainbow in reversed direction backwards
+uint32_t rainbow_moving_reversed_back(unsigned long t, unsigned pixel) {
+  uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
+  return rainbow_reversed((t - msOffset*pixel) % msCircle, pixel);
+}
+
+
+// List of animation functions defined above
 animator_t animators[] = {
-  // first entry is default (make it a nice one...)
+  // First entry is default (make it a nice one...)
   theme_red_violet_blue_sparks,
   theme_red_green_white_sparks,
   theme_gold_blue_cyan_green_sparks,
@@ -237,6 +270,11 @@ animator_t animators[] = {
   random_sparks,
   theme_white_sparks,
   rainbow,
+  rainbow_reversed,
+  rainbow_moving,
+  rainbow_moving_reversed,
+  rainbow_moving_back,
+  rainbow_moving_reversed_back,
   all_white,
   all_black
 };
@@ -294,67 +332,74 @@ void setupAnimation() {
 }
 
 
-// default html menu page
+// Default html menu page
 void send_menu() {
   static const char form[] = "<!doctype html>\n"
     "<html lang=\"en\">\n"
-    "  <head>\n"
-    "    <meta charset=\"utf-8\">\n"
-    "    <meta name=\"description\" content=\"NeoXmas Web Remote Control\">\n"
-    "    <meta name=\"keywords\" content=\"NeoXmas, neopixel, remote, meta\">\n"
-    // "    <link rel=\"stylesheet\" href=\"css\">\n"
-    "    <title>NeoXmas Web Remote Control</title>\n"
-    "  </head>\n"
-    "  <body>\n"
-    "    <h1>NeoXmas Web Remote Control</h1>\n"
-    "    <p>Control the Xmas Neopixel Strip Animations</p>\n"
-    "    <form action=\"cfg\">\n"
-    "      <label for=\"mode\">Mode:\n"
-    "        <select name=\"mode\">\n"
-    "          <option %svalue=\"0\">Sparks red-violet-blue</option>\n"
-    "          <option %svalue=\"1\">Sparks red-green</option>\n"
-    "          <option %svalue=\"2\">Sparks yellow-blue</option>\n"
-    "          <option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
-    "          <option %svalue=\"4\">Sparks random</option>\n"
-    "          <option %svalue=\"5\">Sparks white</option>\n"
-    "          <option %svalue=\"6\">Rainbow</option>\n"
-    "          <option %svalue=\"7\">On</option>\n"
-    "          <option %svalue=\"8\">Off</option>\n"
-    "        </select>\n"
-    "      </label></p>\n"
-    "      <label for=\"circle\">Animation Speed:\n"
-    "        <select name=\"circle\">\n"
-    "          <option %svalue=\"100\">Super fast</option>\n"
-    "          <option %svalue=\"500\">Very fast</option>\n"
-    "          <option %svalue=\"1000\">Fast</option>\n"
-    "          <option %svalue=\"4000\">Normal</option>\n"
-    "          <option %svalue=\"10000\">Slow</option>\n"
-    "          <option %svalue=\"20000\">Very slow</option>\n"
-    "          <option %svalue=\"60000\">Super slow</option>\n"
-    "        </select>\n"
-    "      </label></p>\n"
-    "      <button>Configure</button>\n"
-    "    </form></p>\n"
-    "    <form action=\"/reset\">\n"
-    "      <button>Reset</button>\n"
-    "    </form></p>\n"
-    "    <form action=\"/clear\">\n"
-    "      <button>Clear</button>\n"
-    "    </form></p>\n"
-    "    <form action=\"/version\">\n"
-    "      <button>Version</button>\n"
-    "    </form></p>\n"
-    "  </body>\n"
+      "<head>\n"
+        "<meta charset=\"utf-8\">\n"
+        "<meta name=\"keywords\" content=\"NeoXmas, neopixel, remote, meta\">\n"
+        // "    <link rel=\"stylesheet\" href=\"css\">\n"
+        "<title>NeoXmas Web Remote Control</title>\n"
+      "</head>\n"
+      "<body>\n"
+        "<h1>NeoXmas Web Remote Control</h1>\n"
+        "<p>Control the Xmas Neopixel Strip Animations</p>\n"
+        "<form action=\"cfg\">\n"
+          "<label for=\"mode\">Mode:\n"
+            "<select name=\"mode\">\n"
+              "<option %svalue=\"0\">Sparks red-violet-blue</option>\n"
+              "<option %svalue=\"1\">Sparks red-green</option>\n"
+              "<option %svalue=\"2\">Sparks yellow-blue</option>\n"
+              "<option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
+              "<option %svalue=\"4\">Sparks random</option>\n"
+              "<option %svalue=\"5\">Sparks white</option>\n"
+              "<option %svalue=\"6\">Rainbow</option>\n"
+              "<option %svalue=\"7\">Rainbow reversed</option>\n"
+              "<option %svalue=\"8\">Rainbow moving</option>\n"
+              "<option %svalue=\"9\">Rainbow moving reversed</option>\n"
+              "<option %svalue=\"10\">Rainbow moving back</option>\n"
+              "<option %svalue=\"11\">Rainbow moving reversed back</option>\n"
+              "<option %svalue=\"12\">On</option>\n"
+              "<option %svalue=\"13\">Off</option>\n"
+            "</select>\n"
+          "</label></p>\n"
+          "<label for=\"circle\">Animation Speed:\n"
+            "<select name=\"circle\">\n"
+              "<option %svalue=\"10\">Insanely fast</option>\n"
+              "<option %svalue=\"100\">Super fast</option>\n"
+              "<option %svalue=\"500\">Very fast</option>\n"
+              "<option %svalue=\"1000\">Fast</option>\n"
+              "<option %svalue=\"4000\">Normal</option>\n"
+              "<option %svalue=\"10000\">Slow</option>\n"
+              "<option %svalue=\"20000\">Very slow</option>\n"
+              "<option %svalue=\"60000\">Super slow</option>\n"
+              "<option %svalue=\"600000\">Insanely slow</option>\n"
+            "</select>\n"
+          "</label></p>\n"
+          "<button>Configure</button>\n"
+        "</form></p>\n"
+        "<form action=\"/reset\">\n"
+          "<button>Reset</button>\n"
+        "</form></p>\n"
+        "<form action=\"/clear\">\n"
+          "<button>Clear</button>\n"
+        "</form></p>\n"
+        "<form action=\"/version\">\n"
+          "<button>Version</button>\n"
+        "</form></p>\n"
+      "</body>\n"
     "</html>\n";
   static const char sel[] = "selected ";
   static char page[sizeof(form)+2*sizeof(sel)];
 
   snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
-    mode==2?sel:"", mode==3?sel:"", mode==4?sel:"",
-    mode==5?sel:"", mode==6?sel:"", mode==7?sel:"", mode==8?sel:"",
-    msCircle==100?sel:"", msCircle==500?sel:"", msCircle==1000?sel:"",
-    msCircle==4000?sel:"", msCircle==10000?sel:"", msCircle==20000?sel:"",
-    msCircle==60000?sel:""
+    mode==2?sel:"", mode==3?sel:"", mode==4?sel:"", mode==5?sel:"",
+    mode==6?sel:"", mode==7?sel:"", mode==8?sel:"", mode==9?sel:"",
+    mode==10?sel:"", mode==11?sel:"", mode==12?sel:"", mode==13?sel:"",
+    msCircle==10?sel:"", msCircle==100?sel:"", msCircle==500?sel:"",
+    msCircle==1000?sel:"", msCircle==4000?sel:"", msCircle==10000?sel:"",
+    msCircle==20000?sel:"", msCircle==60000?sel:"", msCircle==600000?sel:""
   );
 
   web_server.send(200, "text/html", page);
