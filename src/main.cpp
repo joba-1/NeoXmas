@@ -172,6 +172,33 @@ uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
 }
 
 
+// Theme warm spark animation
+uint32_t theme_warm_sparks(unsigned long t, unsigned pixel) {
+  static const baseSpark::color_t colors[] = {
+    {0xff, 0, 0},
+    {0xff, 0x0f, 0},
+    {0xff, 0x1f, 0},
+    {0xff, 0x2f, 0},
+    {0xff, 0x3f, 0},
+    {0xff, 0x4f, 0},
+    {0xff, 0x5f, 0},
+    {0xff, 0x6f, 0},
+    {0xff, 0x7f, 0},
+    {0xff, 0x8f, 0},
+    {0xff, 0x9f, 0},
+    {0xff, 0xaf, 0},
+    {0xff, 0xbf, 0},
+    {0xff, 0xcf, 0},
+    {0xff, 0xdf, 0},
+    {0xff, 0xef, 0},
+    {0xff, 0xff, 0},
+    {0,    0, 0xff}
+  };
+
+  return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
+}
+
+
 // Random spark animation
 uint32_t random_sparks(unsigned long t, unsigned pixel) {
   randomSpark::color_t color;
@@ -267,6 +294,7 @@ animator_t animators[] = {
   theme_red_green_white_sparks,
   theme_gold_blue_cyan_green_sparks,
   theme_green_blue_cyan_sparks,
+  theme_warm_sparks,
   random_sparks,
   theme_white_sparks,
   rainbow,
@@ -334,7 +362,7 @@ void setupAnimation() {
 
 // Default html menu page
 void send_menu() {
-  static const char form[] = "<!doctype html>\n"
+  static const char header[] = "<!doctype html>\n"
     "<html lang=\"en\">\n"
       "<head>\n"
         "<meta charset=\"utf-8\">\n"
@@ -344,27 +372,29 @@ void send_menu() {
       "</head>\n"
       "<body>\n"
         "<h1>NeoXmas Web Remote Control</h1>\n"
-        "<p>Control the Xmas Neopixel Strip Animations</p>\n"
+        "<p>Control the Animations</p>\n"
         "<form action=\"cfg\">\n"
           "<label for=\"mode\">Mode:\n"
-            "<select name=\"mode\">\n"
+            "<select name=\"mode\">\n";
+  static const char form[] =
               "<option %svalue=\"0\">Sparks red-violet-blue</option>\n"
               "<option %svalue=\"1\">Sparks red-green</option>\n"
               "<option %svalue=\"2\">Sparks yellow-blue</option>\n"
               "<option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
-              "<option %svalue=\"4\">Sparks random</option>\n"
-              "<option %svalue=\"5\">Sparks white</option>\n"
-              "<option %svalue=\"6\">Rainbow</option>\n"
-              "<option %svalue=\"7\">Rainbow reversed</option>\n"
-              "<option %svalue=\"8\">Rainbow moving</option>\n"
-              "<option %svalue=\"9\">Rainbow moving reversed</option>\n"
-              "<option %svalue=\"10\">Rainbow moving back</option>\n"
-              "<option %svalue=\"11\">Rainbow moving reversed back</option>\n"
-              "<option %svalue=\"12\">On</option>\n"
-              "<option %svalue=\"13\">Off</option>\n"
+              "<option %svalue=\"4\">Sparks warm</option>\n"
+              "<option %svalue=\"5\">Sparks random</option>\n"
+              "<option %svalue=\"6\">Sparks white</option>\n"
+              "<option %svalue=\"7\">Rainbow</option>\n"
+              "<option %svalue=\"8\">Rainbow reversed</option>\n"
+              "<option %svalue=\"9\">Rainbow moving</option>\n"
+              "<option %svalue=\"10\">Rainbow moving reversed</option>\n"
+              "<option %svalue=\"11\">Rainbow moving back</option>\n"
+              "<option %svalue=\"12\">Rainbow moving reversed back</option>\n"
+              "<option %svalue=\"13\">On</option>\n"
+              "<option %svalue=\"14\">Off</option>\n"
             "</select>\n"
           "</label></p>\n"
-          "<label for=\"circle\">Animation Speed:\n"
+          "<label for=\"circle\">Speed:\n"
             "<select name=\"circle\">\n"
               "<option %svalue=\"10\">Insanely fast</option>\n"
               "<option %svalue=\"100\">Super fast</option>\n"
@@ -374,7 +404,8 @@ void send_menu() {
               "<option %svalue=\"10000\">Slow</option>\n"
               "<option %svalue=\"20000\">Very slow</option>\n"
               "<option %svalue=\"60000\">Super slow</option>\n"
-              "<option %svalue=\"600000\">Insanely slow</option>\n"
+              "<option %svalue=\"600000\">Insanely slow</option>\n";
+  static const char footer[] =
             "</select>\n"
           "</label></p>\n"
           "<button>Configure</button>\n"
@@ -393,16 +424,20 @@ void send_menu() {
   static const char sel[] = "selected ";
   static char page[sizeof(form)+2*sizeof(sel)];
 
-  snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
+  size_t len = sizeof(header) + sizeof(footer) - 2;
+  len += snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
     mode==2?sel:"", mode==3?sel:"", mode==4?sel:"", mode==5?sel:"",
     mode==6?sel:"", mode==7?sel:"", mode==8?sel:"", mode==9?sel:"",
-    mode==10?sel:"", mode==11?sel:"", mode==12?sel:"", mode==13?sel:"",
+    mode==10?sel:"", mode==11?sel:"", mode==12?sel:"", mode==13?sel:"", mode==14?sel:"",
     msCircle==10?sel:"", msCircle==100?sel:"", msCircle==500?sel:"",
     msCircle==1000?sel:"", msCircle==4000?sel:"", msCircle==10000?sel:"",
     msCircle==20000?sel:"", msCircle==60000?sel:"", msCircle==600000?sel:""
   );
 
-  web_server.send(200, "text/html", page);
+  web_server.setContentLength(len);
+  web_server.send(200, "text/html", header);
+  web_server.sendContent(page);
+  web_server.sendContent(footer);
 }
 
 
