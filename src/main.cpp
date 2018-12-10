@@ -600,7 +600,7 @@ void loop() {
   updaterHandle();
 
   // Calcuate new animation values
-  set_animation_pixels(t_ms);
+  set_animation_pixels(t_ms+msCircle);
 
   // Update neopixel strip
   pixels.show();
