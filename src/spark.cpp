@@ -86,7 +86,7 @@ themedSpark::themedSpark( uint16_t limit ) : baseSpark(limit) {
 
 void themedSpark::reset() {
   if( _numColors && _colors ) {
-    _color = _colors[map(rand() % 0xffff, 0, 0xffff, 0, _numColors-1)];
+    _color = _colors[((rand() % 0x10000) * _numColors) / 0xffff];
   }
   else {
     _color.r = _color.g = _color.b = 0xff;
