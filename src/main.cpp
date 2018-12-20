@@ -1,17 +1,23 @@
 #include <Arduino.h>
 
+// Strip and animation
 #include <Adafruit_NeoPixel.h>
 #include <spark.h>
 
+// Web Updater
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ESP8266HTTPUpdateServer.h>
 
+// Persistent Configuration Settings
 #include <stdlib.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
+
+// UDP Strip Control
+#include <WiFiUdp.h>
 
 
 // Network stuff, might already be defined by the build tools
@@ -35,6 +41,7 @@
 #endif
 
 #define ONLINE_LED_PIN   D4
+#define UDP_PORT         (('N' << 8) | 'X')
 
 // Neopixel stuff
 #define PIXEL_PIN        D5
@@ -42,7 +49,7 @@
 #define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
 
 // Update interval. Increase, if you want to save time for other stuff...
-#define INTERVAL_MS       0
+#define INTERVAL_MS       4
 // Min and max/2 time for one full animation circle of a led
 #define CIRCLE_MS     10000
 
@@ -68,6 +75,7 @@ uint32_t mode;                     // current animation (index to animators[])
 uint32_t msCircle;                 // min ms for an animation circle
 uint32_t prevMode;                 // previous loop animation
 
+
 animation_t pixelData[NUM_PIXELS]; // animation data of each pixel
 themedSpark themedSparks[NUM_PIXELS];
 randomSpark randomSparks[NUM_PIXELS];
@@ -77,6 +85,8 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM_PIXELS, PIXEL_PIN, NEO_CONFIG);
 ESP8266WebServer web_server(PORT);
 
 ESP8266HTTPUpdateServer esp_updater;
+
+WiFiUDP udpSocket;
 
 
 // Animation implementations
@@ -567,6 +577,10 @@ void updaterHandle() {
 
       Serial.println("Update with curl -F 'image=@firmware.bin' " NAME ".local/update");
 
+      udpSocket.begin(UDP_PORT);
+      MDNS.addService("NeoXmas", "udp", udpSocket.localPort());
+      Serial.printf("Listening on UDP port %u\n", udpSocket.localPort());
+
       updater_needs_setup = false;
     }
     web_server.handleClient();
@@ -574,6 +588,7 @@ void updaterHandle() {
   else {
     if( ! updater_needs_setup ) {
       // Cleanup once after connection is lost
+      udpSocket.stop();
       digitalWrite(ONLINE_LED_PIN, HIGH);
       updater_needs_setup = true;
     }
@@ -582,14 +597,30 @@ void updaterHandle() {
 
 
 // Set pixels according to animation data
-void set_animation_pixels( unsigned long t ) {
-  unsigned long pixel_color;
+void setAnimationPixels( unsigned long t ) {
+  static unsigned long udpPacketTime = 0;
 
-  // Recalculate and set colors of all pixels
-  for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
-    pixel_color = (*animator)(t, pixel);
-    // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
-    pixels.setPixelColor(pixel, pixel_color);
+  // Check if we have a new UDP packet
+  if( udpSocket.parsePacket() > 0 ) {
+    unsigned char msg[4];
+    Serial.printf("Size: %u\n", udpSocket.available());
+    udpPacketTime = t;
+    unsigned pos = 0;
+    while( pos++ < NUM_PIXELS // Read at most NUM_PIXELS
+      && udpSocket.read(msg, sizeof(msg)) == sizeof(msg) ) {
+      if( msg[0] < NUM_PIXELS ) { // Pixel number valid?
+        pixels.setPixelColor(msg[0], Adafruit_NeoPixel::Color(msg[1], msg[2], msg[3]));
+      }
+    }
+    udpSocket.flush();
+  }
+  else if( t - udpPacketTime > msCircle ) { // Udp pattern stays for one circle
+    // Recalculate and set colors of all pixels
+    for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
+      uint32_t pixel_color = (*animator)(t, pixel);
+      // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
+      pixels.setPixelColor(pixel, pixel_color);
+    }
   }
 
   prevMode = mode;
@@ -635,7 +666,7 @@ void loop() {
   updaterHandle();
 
   // Calcuate new animation values
-  set_animation_pixels(t_ms+msCircle);
+  setAnimationPixels(t_ms+msCircle);
 
   // Update neopixel strip
   pixels.show();
