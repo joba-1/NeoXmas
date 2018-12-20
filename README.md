@@ -16,4 +16,14 @@ It does not need WLAN access to display the xmas spark animations, but it is sti
 * Parameters are changed permanently in EEPROM/Flash until you erase them with `http://NeoXmas.local/clear`
 * You can even update its firmware with a simple curl -vF 'image=@firmware.bin' NeoXmas.local/update
 
+## Control the Strip via UDP
+Send UDP packets to port 'NX' (20056) to control pixel colors.
+An udp packet consists of blocks. At most one for each pixel you have.
+Each block consists of one byte pixel number and 3 bytes with r, g and b values.
+YOu dont need to update all pixels with each packet.
+E.g. if you send bytes 0, 255, 0, 0,    1, 0, 128, 0,    2, 0, 64, 64, the current
+animation will stop and you should see bright red, medium green and dark cyan as the first 3 pixels.
+One cycle after sending the last udp packet, NeoPixel resumes with its current animation.
+udp.py is an example program written in python that sends an animation via udp.
+
 Have fun!
