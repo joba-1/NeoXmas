@@ -7,10 +7,10 @@ import socket
 from time import sleep, time
 from math import pi, sin
 
-UDP_IP = "172.20.10.14"
+UDP_IP = socket.gethostbyname("neoXmas")
 UDP_PORT = ord('N') << 8 | ord('X')
-print "UDP target IP:", UDP_IP
-print "UDP target port:", UDP_PORT
+print("UDP target IP:", UDP_IP)
+print("UDP target port:", UDP_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 millis = lambda: int(time() * 1000)
 
@@ -18,7 +18,7 @@ delay=0.03
 
 amplitude_max = 127 # uint8_max / 2
 looptime = 3000     # ms
-leds = 50           # leds
+leds = 25           # leds
 
 amplitude  = amplitude_max
 offset     = amplitude_max
@@ -43,7 +43,7 @@ phaseshift_blue  = phaseshift * 2
 
 while True:
   now = millis()
-  MESSAGE = ""
+  MESSAGE = bytes()
 
   for led in range(0, leds):
 
@@ -55,7 +55,7 @@ while True:
     green = (green * green) / (offset + amplitude_max)
     blue  = (blue  * blue ) / (offset + amplitude_max)
     
-    MESSAGE = MESSAGE + chr(led) + chr(int(red+0.5)) + chr(int(green+0.5)) + chr(int(blue+0.5))
+    MESSAGE += bytes([led, int(red+0.5), int(green+0.5), int(blue+0.5)])
 
   sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
   sleep(delay)
