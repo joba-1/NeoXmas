@@ -69,7 +69,7 @@ typedef struct {
 } animation_t;
 
 // Animation function
-typedef uint32_t (*animator_t)(unsigned long t, unsigned pixel);
+typedef uint32_t (*animator_t)(uint32_t t, unsigned pixel);
 
 uint32_t mode;                     // current animation (index to animators[])
 uint32_t msCircle;                 // min ms for an animation circle
@@ -93,55 +93,55 @@ WiFiUDP udpSocket;
 // Animation implementations
 
 // Simple all white animation
-uint32_t all_white(unsigned long t, unsigned pixel) {
+uint32_t all_white(uint32_t t, unsigned pixel) {
   return 0xffffff; // 0xaaaaaa: no full bright for current reduction
 }
 
 
 // Simple all black animation
-uint32_t all_black(unsigned long t, unsigned pixel) {
+uint32_t all_black(uint32_t t, unsigned pixel) {
   return 0x000000;
 }
 
 
 // Simple all red animation
-uint32_t all_red(unsigned long t, unsigned pixel) {
+uint32_t all_red(uint32_t t, unsigned pixel) {
   return 0xff000f;
 }
 
 
 // Simple all yellow animation
-uint32_t all_yellow(unsigned long t, unsigned pixel) {
+uint32_t all_yellow(uint32_t t, unsigned pixel) {
   return 0xffee11;
 }
 
 
 // Simple all green animation
-uint32_t all_green(unsigned long t, unsigned pixel) {
+uint32_t all_green(uint32_t t, unsigned pixel) {
   return 0x00ff11;
 }
 
 
 // Simple all cyan animation
-uint32_t all_cyan(unsigned long t, unsigned pixel) {
+uint32_t all_cyan(uint32_t t, unsigned pixel) {
   return 0x00eeff;
 }
 
 
 // Simple all blue animation
-uint32_t all_blue(unsigned long t, unsigned pixel) {
+uint32_t all_blue(uint32_t t, unsigned pixel) {
   return 0x1100ff;
 }
 
 
 // Simple all violet animation
-uint32_t all_violet(unsigned long t, unsigned pixel) {
+uint32_t all_violet(uint32_t t, unsigned pixel) {
   return 0x8800ff;
 }
 
 
 // Theme spark animation
-uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t colors[], size_t numColors ) {
+uint32_t theme_sparks(uint32_t t, unsigned pixel, const baseSpark::color_t colors[], size_t numColors ) {
   themedSpark::color_t color;
 
   if( prevMode != mode ) {
@@ -161,7 +161,7 @@ uint32_t theme_sparks(unsigned long t, unsigned pixel, const baseSpark::color_t 
 
 
 // Theme red-violet-blue spark animation
-uint32_t theme_red_violet_blue_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_red_violet_blue_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff, 0, 0},
     {0xff, 0, 0xff},
@@ -173,7 +173,7 @@ uint32_t theme_red_violet_blue_sparks(unsigned long t, unsigned pixel) {
 
 
 // Theme red-green-white spark animation
-uint32_t theme_red_green_white_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_red_green_white_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff,    0,    0},
     {0,    0xff, 0},
@@ -185,7 +185,7 @@ uint32_t theme_red_green_white_sparks(unsigned long t, unsigned pixel) {
 
 
 // Theme gold-blue-cyan-green spark animation
-uint32_t theme_gold_blue_cyan_green_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_gold_blue_cyan_green_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xcc, 0x9b, 0x29},
     {0,    0,    0xff},
@@ -198,7 +198,7 @@ uint32_t theme_gold_blue_cyan_green_sparks(unsigned long t, unsigned pixel) {
 
 
 // Theme blue-green-cyan spark animation
-uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_green_blue_cyan_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0, 0,    0xff},
     {0, 0xff, 0},
@@ -210,7 +210,7 @@ uint32_t theme_green_blue_cyan_sparks(unsigned long t, unsigned pixel) {
 
 
 // Theme white spark animation
-uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_white_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0, 0, 0}
   };
@@ -220,7 +220,7 @@ uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
 
 
 // Theme warm spark animation
-uint32_t theme_warm_sparks(unsigned long t, unsigned pixel) {
+uint32_t theme_warm_sparks(uint32_t t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff, 0, 0},
     //{0,    0, 0xff},
@@ -247,7 +247,7 @@ uint32_t theme_warm_sparks(unsigned long t, unsigned pixel) {
 
 
 // Random spark animation
-uint32_t random_sparks(unsigned long t, unsigned pixel) {
+uint32_t random_sparks(uint32_t t, unsigned pixel) {
   randomSpark::color_t color;
   if( prevMode != mode ) {
     randomSparks[pixel].reset();
@@ -264,71 +264,71 @@ uint32_t random_sparks(unsigned long t, unsigned pixel) {
 
 
 // Rainbow
-uint32_t rainbow(unsigned long t, unsigned pixel) {
+uint32_t rainbow(uint32_t t, unsigned pixel) {
   uint32_t part = t % msCircle; // time in circle
   uint32_t segment = msCircle / 6; // size of 6 color time segments
   uint32_t fade; // value of fading color
 
   if( part < segment ) { // cyan -> blue
-    fade = 0xffff - (0xffff * part) / segment;
+    fade = 0xffff - (0xffffULL * part) / segment;
     return ((fade*fade)>>24) << 8 | 0xff;
   }
   part -= segment;
   if( part < segment ) { // blue -> violet
-    fade = (0xffff * part) / segment;
+    fade = (0xffffULL * part) / segment;
     return ((fade*fade)>>24) << 16 | 0xff;
   }
   part -= segment;
   if( part < segment ) { // violet -> red
-    fade = 0xffff - (0xffff * part) / segment;
+    fade = 0xffff - (0xffffULL * part) / segment;
     return 0xff << 16 | (fade*fade)>>24;
   }
   part -= segment;
   if( part < segment ) { // red -> yellow
-    fade = (0xffff * part) / segment;
+    fade = (0xffffULL * part) / segment;
     return 0xff << 16 | ((fade*fade)>>24) << 8;
   }
   part -= segment;
   if( part < segment ) { // yellow -> green
-    fade = 0xffff - (0xffff * part) / segment;
+    fade = 0xffff - (0xffffULL * part) / segment;
     return ((fade*fade)>>24) << 16 | 0xff << 8;
   }
   part -= segment;
   // green -> cyan
-  fade = (0xffff * part) / segment;
+  fade = (0xffffULL * part) / segment;
   return 0xff << 8 | (fade*fade)>>24;
 }
 
 
 // Rainbow reversed
-uint32_t rainbow_reversed(unsigned long t, unsigned pixel) {
+uint32_t rainbow_reversed(uint32_t t, unsigned pixel) {
   return rainbow(msCircle - 1 - t % msCircle, pixel); // time in circle, reversed
 }
 
 
 // Moving rainbow
-uint32_t rainbow_moving(unsigned long t, unsigned pixel) {
+uint32_t rainbow_moving(uint32_t t, unsigned pixel) {
   uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
   return rainbow((t + msOffset*pixel) % msCircle, pixel);
 }
 
 
 // Moving rainbow in reversed direction
-uint32_t rainbow_moving_reversed(unsigned long t, unsigned pixel) {
+uint32_t rainbow_moving_reversed(uint32_t t, unsigned pixel) {
   uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
   return rainbow_reversed((t + msOffset*pixel) % msCircle, pixel);
 }
 
 
 // Moving rainbow backwards
-uint32_t rainbow_moving_back(unsigned long t, unsigned pixel) {
+uint32_t rainbow_moving_back(uint32_t t, unsigned pixel) {
   uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
   return rainbow((t - msOffset*pixel) % msCircle, pixel);
 }
 
 
 // Moving rainbow in reversed direction backwards
-uint32_t rainbow_moving_reversed_back(unsigned long t, unsigned pixel) {
+uint32_t rainbow_moving_reversed_back(uint32_t t, unsigned pixel) {
   uint32_t msOffset = msCircle / NUM_PIXELS; // time diff between pixels
   return rainbow_reversed((t - msOffset*pixel) % msCircle, pixel);
 }
@@ -370,7 +370,7 @@ void sine_waves_init() {
 }
 
 // sine waves animation
-uint32_t sine_waves(unsigned long t, unsigned pixel) {
+uint32_t sine_waves(uint32_t t, unsigned pixel) {
   uint16_t red, green, blue;
 
   red   = uint16_t(wave_red.amplitude   * sin( wave_red.frequency   * t + wave_red.phaseshift   * pixel )) + wave_red.offset;
@@ -778,8 +778,8 @@ void updaterHandle() {
 
 
 // Set pixels according to animation data
-bool setAnimationPixels( unsigned long t ) {
-  static unsigned long udpPacketTime = 0;
+bool setAnimationPixels( uint32_t t ) {
+  static uint32_t udpPacketTime = 0;
   bool rc = false;
 
   // Check if we have a new UDP packet
@@ -847,7 +847,7 @@ void setup() {
 
 // Worker loop, updates animation data and displays it on neopixels
 void loop() {
-  unsigned long t_ms = millis();
+  uint32_t t_ms = millis();
 
   // Online web update
   updaterHandle();
@@ -860,6 +860,6 @@ void loop() {
   }
 
   // Keep constant loop interval, if possible
-  unsigned long wait_ms = INTERVAL_MS + t_ms - millis();
-  delay(wait_ms <= INTERVAL_MS ? wait_ms : 0); // delay(0) reduces power?
+  uint32_t elapsed_ms = millis() - t_ms;
+  delay(elapsed_ms < INTERVAL_MS ? INTERVAL_MS - elapsed_ms : 0); // delay(0) reduces power?
 }
