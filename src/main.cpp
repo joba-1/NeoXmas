@@ -45,7 +45,7 @@
 
 // Neopixel stuff
 #define PIXEL_PIN        D5
-#define NUM_PIXELS       50
+#define NUM_PIXELS       25
 #define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
 
 // Update interval. Increase, if you want to save time for other stuff...
@@ -54,7 +54,7 @@
 #define CIRCLE_MS     10000
 
 // Change, if you modify eeprom_t in a backward incompatible way
-#define EEPROM_MAGIC     (0xabcd1235)
+#define EEPROM_MAGIC     (0xabcd1236)
 
 // EEPROM data
 typedef struct {
@@ -74,6 +74,7 @@ typedef uint32_t (*animator_t)(unsigned long t, unsigned pixel);
 uint32_t mode;                     // current animation (index to animators[])
 uint32_t msCircle;                 // min ms for an animation circle
 uint32_t prevMode;                 // previous loop animation
+bool     paused;                   // Animation paused?
 
 
 animation_t pixelData[NUM_PIXELS]; // animation data of each pixel
@@ -93,13 +94,49 @@ WiFiUDP udpSocket;
 
 // Simple all white animation
 uint32_t all_white(unsigned long t, unsigned pixel) {
-  return 0xffffff;
+  return 0xffffff; // 0xaaaaaa: no full bright for current reduction
 }
 
 
 // Simple all black animation
 uint32_t all_black(unsigned long t, unsigned pixel) {
   return 0x000000;
+}
+
+
+// Simple all red animation
+uint32_t all_red(unsigned long t, unsigned pixel) {
+  return 0xff000f;
+}
+
+
+// Simple all yellow animation
+uint32_t all_yellow(unsigned long t, unsigned pixel) {
+  return 0xffee11;
+}
+
+
+// Simple all green animation
+uint32_t all_green(unsigned long t, unsigned pixel) {
+  return 0x00ff11;
+}
+
+
+// Simple all cyan animation
+uint32_t all_cyan(unsigned long t, unsigned pixel) {
+  return 0x00eeff;
+}
+
+
+// Simple all blue animation
+uint32_t all_blue(unsigned long t, unsigned pixel) {
+  return 0x1100ff;
+}
+
+
+// Simple all violet animation
+uint32_t all_violet(unsigned long t, unsigned pixel) {
+  return 0x8800ff;
 }
 
 
@@ -186,6 +223,7 @@ uint32_t theme_white_sparks(unsigned long t, unsigned pixel) {
 uint32_t theme_warm_sparks(unsigned long t, unsigned pixel) {
   static const baseSpark::color_t colors[] = {
     {0xff, 0, 0},
+    //{0,    0, 0xff},
     {0xff, 0x0f, 0},
     {0xff, 0x1f, 0},
     {0xff, 0x2f, 0},
@@ -201,8 +239,7 @@ uint32_t theme_warm_sparks(unsigned long t, unsigned pixel) {
     {0xff, 0xcf, 0},
     {0xff, 0xdf, 0},
     {0xff, 0xef, 0},
-    {0xff, 0xff, 0},
-    {0,    0, 0xff}
+    {0xff, 0xff, 0}
   };
 
   return theme_sparks(t, pixel, colors, sizeof(colors)/sizeof(*colors));
@@ -297,9 +334,62 @@ uint32_t rainbow_moving_reversed_back(unsigned long t, unsigned pixel) {
 }
 
 
+// Sine Wave Interferences
+
+typedef struct {
+  uint8_t amplitude;
+  uint8_t offset;
+  float frequency;
+  float phaseshift;
+} wave_t;
+
+wave_t wave_red;
+wave_t wave_green;
+wave_t wave_blue;
+
+static uint8_t amplitude_max = UINT8_MAX / 2;
+
+void sine_waves_init() {
+  wave_red.amplitude  = amplitude_max;
+  wave_red.offset     = amplitude_max;
+  wave_red.frequency  = 2.0 * PI / msCircle;    // frequency for one wave per looptime
+  wave_red.phaseshift = 2.0 * PI / NUM_PIXELS;  // phase shift between leds for one full wave
+  wave_red.phaseshift *= -1;
+
+  wave_green.amplitude  = amplitude_max;
+  wave_green.offset     = amplitude_max;
+  wave_green.frequency  = 2.0 * PI / msCircle;    // frequency for one wave per looptime
+  wave_green.phaseshift = 2.0 * PI / NUM_PIXELS;  // phase shift between leds for one full wave
+  wave_green.phaseshift *= 3;
+
+  wave_blue.amplitude  = amplitude_max;
+  wave_blue.offset     = amplitude_max;
+  wave_blue.frequency  = 2.0 * PI / msCircle;    // frequency for one wave per looptime
+  wave_blue.phaseshift = 2.0 * PI / NUM_PIXELS;  // phase shift between leds for one full wave
+  wave_blue.phaseshift *= 2;
+}
+
+// sine waves animation
+uint32_t sine_waves(unsigned long t, unsigned pixel) {
+  uint16_t red, green, blue;
+
+  red   = uint16_t(wave_red.amplitude   * sin( wave_red.frequency   * t + wave_red.phaseshift   * pixel )) + wave_red.offset;
+  green = uint16_t(wave_green.amplitude * sin( wave_green.frequency * t + wave_green.phaseshift * pixel )) + wave_green.offset;
+  blue  = uint16_t(wave_blue.amplitude  * sin( wave_blue.frequency  * t + wave_blue.phaseshift  * pixel )) + wave_blue.offset;
+
+  red   = (red   * red  ) / (2 * amplitude_max);
+  green = (green * green) / (2 * amplitude_max);
+  blue  = (blue  * blue ) / (2 * amplitude_max);
+
+  uint32_t col = (red & 0xff) << 16 | (green & 0xff) << 8 | (blue & 0xff);
+  return col;
+}
+
+
 // List of animation functions defined above
 animator_t animators[] = {
   // First entry is default (make it a nice one...)
+  sine_waves,
   theme_red_violet_blue_sparks,
   theme_red_green_white_sparks,
   theme_gold_blue_cyan_green_sparks,
@@ -313,6 +403,12 @@ animator_t animators[] = {
   rainbow_moving_reversed,
   rainbow_moving_back,
   rainbow_moving_reversed_back,
+  all_red,
+  all_yellow,
+  all_green,
+  all_cyan,
+  all_blue,
+  all_violet,
   all_white,
   all_black
 };
@@ -367,6 +463,7 @@ void wifiSetup() {
 // Call this after mode has been changed to setup new animation
 void setupAnimation() {
   animator = animators[mode < sizeof(animators)/sizeof(*animators) ? mode : 0];
+  sine_waves_init();
 }
 
 
@@ -379,31 +476,79 @@ void send_menu() {
         "<meta name=\"keywords\" content=\"NeoXmas, neopixel, remote, meta\">\n"
         // "    <link rel=\"stylesheet\" href=\"css\">\n"
         "<title>NeoXmas Web Remote Control</title>\n"
+        "<style>\n"
+          ".slidecontainer { width: 80%; }\n"
+          ".slider {\n"
+            "-webkit-appearance: none;\n"
+            "width: 100%;\n"
+            "height: 15px;\n"
+            "border-radius: 5px;\n"
+            "background: #d3d3d3;\n"
+            "outline: none;\n"
+            "opacity: 0.7;\n"
+            "-webkit-transition: .2s;\n"
+            "transition: opacity .2s; }\n"
+          ".slider:hover { opacity: 1; }\n"
+          ".slider::-webkit-slider-thumb {\n"
+            "-webkit-appearance: none;\n"
+            "appearance: none;\n"
+            "width: 25px;\n"
+            "height: 25px;\n"
+            "border-radius: 50%;\n" 
+            "background: #4CAF50;\n"
+            "cursor: pointer; }\n"
+          ".slider::-moz-range-thumb {\n"
+            "width: 25px;\n"
+            "height: 25px;\n"
+            "border-radius: 50%;\n"
+            "background: #4CAF50;\n"
+            "cursor: pointer; }\n"
+        "</style>\n"
       "</head>\n"
       "<body>\n"
         "<h1>NeoXmas Web Remote Control</h1>\n"
-        "<p>Control the Animations</p>\n"
+        "<p>Control the Animations</p>\n";
+  static const char wave[] =
+        "<div class=\"slidecontainer\">\n"
+          "<input type=\"range\" min=\"1\" max=\"100\" value=\"50\" class=\"slider\" id=\"myRange\">\n"
+        "</div>\n"
+        "<p>Value: <span id=\"demo\"></span></p>\n"
+        "<script>\n"
+          "var slider = document.getElementById(\"myRange\");\n"
+          "var output = document.getElementById(\"demo\");\n"
+          "output.innerHTML = slider.value;\n"
+          "slider.oninput = function() { output.innerHTML = this.value; }\n"
+        "</script>\n";
+  static const char form[] =
+        "<table cellpadding=20><tr><td>\n"
         "<form action=\"cfg\">\n"
           "<label for=\"mode\">Mode:\n"
-            "<select name=\"mode\">\n";
-  static const char form[] =
-              "<option %svalue=\"0\">Sparks red-violet-blue</option>\n"
-              "<option %svalue=\"1\">Sparks red-green</option>\n"
-              "<option %svalue=\"2\">Sparks yellow-blue</option>\n"
-              "<option %svalue=\"3\">Sparks green-cyan-blue</option>\n"
-              "<option %svalue=\"4\">Sparks warm</option>\n"
-              "<option %svalue=\"5\">Sparks random</option>\n"
-              "<option %svalue=\"6\">Sparks white</option>\n"
-              "<option %svalue=\"7\">Rainbow</option>\n"
-              "<option %svalue=\"8\">Rainbow reversed</option>\n"
-              "<option %svalue=\"9\">Rainbow moving</option>\n"
-              "<option %svalue=\"10\">Rainbow moving reversed</option>\n"
-              "<option %svalue=\"11\">Rainbow moving back</option>\n"
-              "<option %svalue=\"12\">Rainbow moving reversed back</option>\n"
-              "<option %svalue=\"13\">On</option>\n"
-              "<option %svalue=\"14\">Off</option>\n"
+            "<select name=\"mode\">\n"
+              "<option %svalue=\"0\">Sine waves</option>\n"
+              "<option %svalue=\"1\">Sparks red-violet-blue</option>\n"
+              "<option %svalue=\"2\">Sparks red-green</option>\n"
+              "<option %svalue=\"3\">Sparks yellow-blue</option>\n"
+              "<option %svalue=\"4\">Sparks green-cyan-blue</option>\n"
+              "<option %svalue=\"5\">Sparks warm</option>\n"
+              "<option %svalue=\"6\">Sparks random</option>\n"
+              "<option %svalue=\"7\">Sparks white</option>\n"
+              "<option %svalue=\"8\">Rainbow</option>\n"
+              "<option %svalue=\"9\">Rainbow reversed</option>\n"
+              "<option %svalue=\"10\">Rainbow moving</option>\n"
+              "<option %svalue=\"11\">Rainbow moving reversed</option>\n"
+              "<option %svalue=\"12\">Rainbow moving back</option>\n"
+              "<option %svalue=\"13\">Rainbow moving reversed back</option>\n"
+              "<option %svalue=\"14\">Red</option>\n"
+              "<option %svalue=\"15\">Yellow</option>\n"
+              "<option %svalue=\"16\">Green</option>\n"
+              "<option %svalue=\"17\">Cyan</option>\n"
+              "<option %svalue=\"18\">Blue</option>\n"
+              "<option %svalue=\"19\">Violet</option>\n"
+              "<option %svalue=\"20\">White</option>\n"
+              "<option %svalue=\"21\">Off</option>\n"
             "</select>\n"
-          "</label></p>\n"
+          "</label></td><td>\n"
+          "<button>Configure</button></td></tr><tr><td>\n"
           "<label for=\"circle\">Speed:\n"
             "<select name=\"circle\">\n"
               "<option %svalue=\"10\">Insanely fast</option>\n"
@@ -417,18 +562,40 @@ void send_menu() {
               "<option %svalue=\"600000\">Insanely slow</option>\n";
   static const char footer[] =
             "</select>\n"
-          "</label></p>\n"
-          "<button>Configure</button>\n"
-        "</form></p>\n"
-        "<form action=\"/reset\">\n"
-          "<button>Reset</button>\n"
-        "</form></p>\n"
-        "<form action=\"/clear\">\n"
-          "<button>Clear</button>\n"
-        "</form></p>\n"
-        "<form action=\"/version\">\n"
-          "<button>Version</button>\n"
-        "</form></p>\n"
+          "</label>\n"
+        "</form></td><td>\n"
+          "<form action=\"/pause\">\n"
+            "<button>Pause</button>\n"
+          "</form></td></tr><tr><td>\n"
+          "<form action=\"/reset\">\n"
+            "<button>Reset</button>\n"
+          "</form></td><td>\n"
+          "<form action=\"/clear\">\n"
+            "<button>Clear</button>\n"
+          "</form></td></tr><tr><td>\n"
+          "<form action=\"/version\">\n"
+            "<button>Version</button>\n"
+          "</form></td></tr>\n"
+        "</table>\n" /*
+        "<script>\n"
+          "var win = $(window);\n"
+          "var lay = $('#layout');\n"
+          "var baseSize = { w: 720, h: 500 }\n"
+          "function updateScale() {\n"
+            "var ww = $win.width();\n"
+            "var wh = $win.height();\n"
+            "var newScale = 1;\n"
+            "if(ww/wh < baseSize.w/baseSize.h) {\n"
+               "newScale = ww / baseSize.w;\n"
+            "} else {\n"
+               "newScale = wh / baseSize.h;\n"        
+            "}\n"
+            "$lay.css('transform', 'scale(' + newScale + ',' +  newScale + ')');\n"
+            "console.log(newScale);\n"
+          "}\n"
+          "$(window).resize(updateScale);\n"
+          // "$(document).ready(updateScale);\n"
+        "</script>\n" */
       "</body>\n"
     "</html>\n";
   static const char sel[] = "selected ";
@@ -438,7 +605,9 @@ void send_menu() {
   len += snprintf(page, sizeof(page), form, mode==0?sel:"", mode==1?sel:"",
     mode==2?sel:"", mode==3?sel:"", mode==4?sel:"", mode==5?sel:"",
     mode==6?sel:"", mode==7?sel:"", mode==8?sel:"", mode==9?sel:"",
-    mode==10?sel:"", mode==11?sel:"", mode==12?sel:"", mode==13?sel:"", mode==14?sel:"",
+    mode==10?sel:"", mode==11?sel:"", mode==12?sel:"", mode==13?sel:"",
+    mode==14?sel:"", mode==15?sel:"", mode==16?sel:"", mode==17?sel:"",
+    mode==18?sel:"", mode==19?sel:"", mode==20?sel:"", mode==21?sel:"",
     msCircle==10?sel:"", msCircle==100?sel:"", msCircle==500?sel:"",
     msCircle==1000?sel:"", msCircle==4000?sel:"", msCircle==10000?sel:"",
     msCircle==20000?sel:"", msCircle==60000?sel:"", msCircle==600000?sel:""
@@ -446,6 +615,7 @@ void send_menu() {
 
   web_server.setContentLength(len);
   web_server.send(200, "text/html", header);
+  // web_server.sendContent(wave);
   web_server.sendContent(page);
   web_server.sendContent(footer);
 }
@@ -457,6 +627,18 @@ void webserverSetup() {
   // Call this page to see the ESPs firmware version
   web_server.on("/version", []() {
     web_server.send(200, "text/plain", "ok: " VERSION "\n");
+  });
+
+  // Call this page to toggle pause animation
+  web_server.on("/pause", []() {
+    paused = !paused;
+    send_menu();
+    /*
+    if( paused )
+      web_server.send(200, "text/plain", "ok: paused\n");
+    else
+      web_server.send(200, "text/plain", "ok: running\n");
+    */
   });
 
   // Call this page to reset the ESP
@@ -491,17 +673,16 @@ void webserverSetup() {
     int processed = 0; // Count processed URI parameters
 
     if( web_server.args() == 0 ) {
-      DynamicJsonBuffer jsonBuffer(200);
-      JsonObject& root = jsonBuffer.createObject();
-      root["version"] = VERSION;
-      JsonObject& cfg = root.createNestedObject("cfg");
+      DynamicJsonDocument jsonDoc(200);
+      jsonDoc["version"] = VERSION;
+      JsonObject cfg = jsonDoc.createNestedObject("cfg");
       cfg["mode"] = mode;
       cfg["circle"] = msCircle;
       // cfg["l"] = l;
       // JsonObject& color = cfg.createNestedObject("colors");
       // color["p"] = pd_color;
       String msg;
-      root.printTo(msg);
+      serializeJson(jsonDoc, msg);
       web_server.send(200, "application/json", msg);
     }
     else {
@@ -578,7 +759,7 @@ void updaterHandle() {
       Serial.println("Update with curl -F 'image=@firmware.bin' " NAME ".local/update");
 
       udpSocket.begin(UDP_PORT);
-      MDNS.addService("NeoXmas", "udp", udpSocket.localPort());
+      MDNS.addService(NAME, "udp", udpSocket.localPort());
       Serial.printf("Listening on UDP port %u\n", udpSocket.localPort());
 
       updater_needs_setup = false;
@@ -597,8 +778,9 @@ void updaterHandle() {
 
 
 // Set pixels according to animation data
-void setAnimationPixels( unsigned long t ) {
+bool setAnimationPixels( unsigned long t ) {
   static unsigned long udpPacketTime = 0;
+  bool rc = false;
 
   // Check if we have a new UDP packet
   if( udpSocket.parsePacket() > 0 ) {
@@ -613,17 +795,20 @@ void setAnimationPixels( unsigned long t ) {
       }
     }
     udpSocket.flush();
+    rc = true;
   }
-  else if( t - udpPacketTime > msCircle ) { // Udp pattern stays for one circle
+  else if( t - udpPacketTime > msCircle && !paused ) { // Udp pattern stays for one circle
     // Recalculate and set colors of all pixels
     for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
       uint32_t pixel_color = (*animator)(t, pixel);
       // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
       pixels.setPixelColor(pixel, pixel_color);
     }
+    prevMode = mode;
+    rc = true;
   }
 
-  prevMode = mode;
+  return rc;
 }
 
 
@@ -654,6 +839,8 @@ void setup() {
   getEeprom();
   setupAnimation();
 
+  paused = false;
+
   Serial.println("\nBooted " VERSION);
 }
 
@@ -666,10 +853,11 @@ void loop() {
   updaterHandle();
 
   // Calcuate new animation values
-  setAnimationPixels(t_ms+msCircle);
+  if( setAnimationPixels(t_ms+msCircle) ) {
 
-  // Update neopixel strip
-  pixels.show();
+    // Update neopixel strip
+    pixels.show();
+  }
 
   // Keep constant loop interval, if possible
   unsigned long wait_ms = INTERVAL_MS + t_ms - millis();

@@ -35,18 +35,39 @@ while False:
 
 # Red, green and blue blocks of pixels moving
 block = 9
-while True:
+while False:
   for j in range(0, 3*block):
     MESSAGE = ""
     for i in range(0, leds):
       mode = (i + j) % (3*block)
       i = leds - i - 1 # change direction
       if mode < block:
-        MESSAGE = MESSAGE + chr(i) + chr(maxi) + chr(0) + chr(0)
+        MESSAGE = MESSAGE + chr(i) + chr(maxi) + chr(0)    + chr(0)
       elif mode < 2*block:
-        MESSAGE = MESSAGE + chr(i) + chr(0) + chr(maxi) + chr(0)
+        MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(maxi) + chr(0)
       elif mode < 3*block:
-        MESSAGE = MESSAGE + chr(i) + chr(0) + chr(0) + chr(maxi)
+        MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(0)    + chr(maxi)
+      else:
+        print mode
+    sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
+    sleep(delay*2)
+
+# Italian flag
+block = 6
+while True:
+  for j in range(0, 4*block):
+    MESSAGE = ""
+    for i in range(0, leds):
+      mode = (i + j) % (4*block)
+      i = leds - i - 1 # change direction
+      if mode < block:
+        MESSAGE = MESSAGE + chr(i) + chr(maxi) + chr(0)    + chr(0)
+      elif mode < 2*block:
+        MESSAGE = MESSAGE + chr(i) + chr(maxi) + chr(maxi) + chr(maxi)
+      elif mode < 3*block:
+        MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(maxi) + chr(0)
+      elif mode < 4*block:
+        MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(0)    + chr(0)
       else:
         print mode
     sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
