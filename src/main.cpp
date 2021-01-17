@@ -19,7 +19,6 @@
 // UDP Strip Control
 #include <WiFiUdp.h>
 
-
 // Network stuff, might already be defined by the build tools
 #ifdef WLANCONFIG
   #include <WlanConfig.h>
@@ -40,12 +39,23 @@
   #define PORT      80
 #endif
 
-#define ONLINE_LED_PIN   D4
+// Syslog
+#include <Logger.h>
+
+#define SYSLOG_SERVER "job4"
+#define SYSLOG_APP NAME "-" VERSION
+#define SYSLOG_PRIO LOG_INFO
+
+Logger logger(SYSLOG_SERVER, SYSLOG_APP, SYSLOG_PRIO);
+
+ADC_MODE(ADC_VCC);
+
+#define ONLINE_LED_PIN D4
 #define UDP_PORT         (('N' << 8) | 'X')
 
 // Neopixel stuff
 #define PIXEL_PIN        D5
-#define NUM_PIXELS       25
+#define NUM_PIXELS       50
 #define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
 
 // Update interval. Increase, if you want to save time for other stuff...
@@ -750,6 +760,7 @@ void updaterHandle() {
       digitalWrite(ONLINE_LED_PIN, LOW);
       Serial.printf("WLAN '%s' connected with IP ", SSID);
       Serial.println(WiFi.localIP());
+      INFO("WLAN '%s' connected with IP %s", SSID, WiFi.localIP().toString().c_str());
 
       MDNS.begin(NAME);
 
@@ -761,6 +772,9 @@ void updaterHandle() {
       udpSocket.begin(UDP_PORT);
       MDNS.addService(NAME, "udp", udpSocket.localPort());
       Serial.printf("Listening on UDP port %u\n", udpSocket.localPort());
+      INFO("Listening on UDP port %u", udpSocket.localPort());
+
+      INFO("Reset reason: %s", ESP.getResetInfo().c_str());
 
       updater_needs_setup = false;
     }
@@ -845,6 +859,18 @@ void setup() {
 }
 
 
+void monitor() {
+  static const uint16_t interval_ms = 60000;
+  static uint32_t prev_millis = 0;
+  uint32_t now = millis();
+  if( now - prev_millis > interval_ms ) {
+    prev_millis = now;
+    INFO("Uptime: %u ms, %u mV, memory: %u free heap, %u max block, %u%% fragmented", 
+      now, ESP.getVcc(), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), ESP.getHeapFragmentation());
+  }
+}
+
+
 // Worker loop, updates animation data and displays it on neopixels
 void loop() {
   uint32_t t_ms = millis();
@@ -858,6 +884,8 @@ void loop() {
     // Update neopixel strip
     pixels.show();
   }
+
+  monitor();
 
   // Keep constant loop interval, if possible
   uint32_t elapsed_ms = millis() - t_ms;
