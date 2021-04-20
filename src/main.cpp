@@ -863,8 +863,8 @@ void monitor() {
   static const uint16_t interval_ms = 60000;
   static uint32_t prev_millis = 0;
   uint32_t now = millis();
-  if( now - prev_millis > interval_ms ) {
-    prev_millis = now;
+  if( now - prev_millis >= interval_ms ) {
+    prev_millis += interval_ms;
     INFO("Uptime: %u ms, %u mV, memory: %u free heap, %u max block, %u%% fragmented", 
       now, ESP.getVcc(), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), ESP.getHeapFragmentation());
   }
@@ -879,10 +879,13 @@ void loop() {
   updaterHandle();
 
   // Calcuate new animation values
+
   if( setAnimationPixels(t_ms+msCircle) ) {
 
     // Update neopixel strip
+    //digitalWrite(ONLINE_LED_PIN, LOW);
     pixels.show();
+    //digitalWrite(ONLINE_LED_PIN, HIGH);
   }
 
   monitor();

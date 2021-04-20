@@ -34,7 +34,7 @@ private:
 class randomSpark : public baseSpark {
 public:
   randomSpark( uint16_t limit = SPARK_LIMIT );
-  void reset();
+  void reset() override;
 };
 
 
@@ -42,7 +42,7 @@ public:
 class themedSpark : public baseSpark {
 public:
   themedSpark( uint16_t limit = SPARK_LIMIT );
-  void reset();
+  void reset() override;
 
   static void setTheme( const color_t colors[], uint16_t numColors );
 
