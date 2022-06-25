@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
 // Strip and animation
-#include <Adafruit_NeoPixel.h>
+#include <NeoPixelBus.h>
 #include <spark.h>
 
 // Web Updater
@@ -53,10 +53,8 @@ ADC_MODE(ADC_VCC);
 #define ONLINE_LED_PIN D4
 #define UDP_PORT         (('N' << 8) | 'X')
 
-// Neopixel stuff
-#define PIXEL_PIN        D5
+// Neopixels to use
 #define NUM_PIXELS       50
-#define NEO_CONFIG       (NEO_RGB+NEO_KHZ800)
 
 // Update interval. Increase, if you want to save time for other stuff...
 #define INTERVAL_MS       4
@@ -91,7 +89,7 @@ animation_t pixelData[NUM_PIXELS]; // animation data of each pixel
 themedSpark themedSparks[NUM_PIXELS];
 randomSpark randomSparks[NUM_PIXELS];
 
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUM_PIXELS, PIXEL_PIN, NEO_CONFIG);
+NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> pixels(NUM_PIXELS);  // ESP8266: uses RX0/GPIO3 for DMA
 
 ESP8266WebServer web_server(PORT);
 
@@ -383,6 +381,11 @@ void sine_waves_init() {
 uint32_t sine_waves(uint32_t t, unsigned pixel) {
   uint16_t red, green, blue;
 
+  if( prevMode != mode ) {
+    sine_waves_init();
+    prevMode = mode;
+  }
+
   red   = uint16_t(wave_red.amplitude   * sin( wave_red.frequency   * t + wave_red.phaseshift   * pixel )) + wave_red.offset;
   green = uint16_t(wave_green.amplitude * sin( wave_green.frequency * t + wave_green.phaseshift * pixel )) + wave_green.offset;
   blue  = uint16_t(wave_blue.amplitude  * sin( wave_blue.frequency  * t + wave_blue.phaseshift  * pixel )) + wave_blue.offset;
@@ -423,13 +426,13 @@ animator_t animators[] = {
   all_black
 };
 
-animator_t &animator = animators[0];   // current animation
+animator_t animator = animators[0];  // current animation
 
 
 // Builtin default settings, used if Eeprom is erased or invalid
 void setupDefaults() {
   mode = 0;             // first mode
-  prevMode = mode - 1;  // different from mode forces mode init
+  prevMode = mode + 1;  // different from mode forces mode init
   msCircle = CIRCLE_MS; // default min animation circle time
 }
 
@@ -472,8 +475,13 @@ void wifiSetup() {
 
 // Call this after mode has been changed to setup new animation
 void setupAnimation() {
-  animator = animators[mode < sizeof(animators)/sizeof(*animators) ? mode : 0];
-  sine_waves_init();
+  INFO("Animation mode: %u, circle: %u ms", mode, msCircle);
+  if( mode < sizeof(animators)/sizeof(*animators) ) {
+    animator = animators[mode];
+  }
+  else {
+    mode = prevMode;
+  }
 }
 
 
@@ -518,17 +526,17 @@ void send_menu() {
       "<body>\n"
         "<h1>NeoXmas Web Remote Control</h1>\n"
         "<p>Control the Animations</p>\n";
-  static const char wave[] =
-        "<div class=\"slidecontainer\">\n"
-          "<input type=\"range\" min=\"1\" max=\"100\" value=\"50\" class=\"slider\" id=\"myRange\">\n"
-        "</div>\n"
-        "<p>Value: <span id=\"demo\"></span></p>\n"
-        "<script>\n"
-          "var slider = document.getElementById(\"myRange\");\n"
-          "var output = document.getElementById(\"demo\");\n"
-          "output.innerHTML = slider.value;\n"
-          "slider.oninput = function() { output.innerHTML = this.value; }\n"
-        "</script>\n";
+  // static const char wave[] =
+  //       "<div class=\"slidecontainer\">\n"
+  //         "<input type=\"range\" min=\"1\" max=\"100\" value=\"50\" class=\"slider\" id=\"myRange\">\n"
+  //       "</div>\n"
+  //       "<p>Value: <span id=\"demo\"></span></p>\n"
+  //       "<script>\n"
+  //         "var slider = document.getElementById(\"myRange\");\n"
+  //         "var output = document.getElementById(\"demo\");\n"
+  //         "output.innerHTML = slider.value;\n"
+  //         "slider.oninput = function() { output.innerHTML = this.value; }\n"
+  //       "</script>\n";
   static const char form[] =
         "<table cellpadding=20><tr><td>\n"
         "<form action=\"cfg\">\n"
@@ -805,21 +813,27 @@ bool setAnimationPixels( uint32_t t ) {
     while( pos++ < NUM_PIXELS // Read at most NUM_PIXELS
       && udpSocket.read(msg, sizeof(msg)) == sizeof(msg) ) {
       if( msg[0] < NUM_PIXELS ) { // Pixel number valid?
-        pixels.setPixelColor(msg[0], Adafruit_NeoPixel::Color(msg[1], msg[2], msg[3]));
+        RgbColor new_color = RgbColor(msg[1], msg[2], msg[3]);
+        if( new_color != pixels.GetPixelColor(msg[0]) ) {
+          pixels.SetPixelColor(msg[0], new_color);
+          rc = true;
+        }
       }
     }
     udpSocket.flush();
-    rc = true;
   }
   else if( t - udpPacketTime > msCircle && !paused ) { // Udp pattern stays for one circle
     // Recalculate and set colors of all pixels
     for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
-      uint32_t pixel_color = (*animator)(t, pixel);
-      // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
-      pixels.setPixelColor(pixel, pixel_color);
+      uint32_t color = (*animator)(t, pixel);
+      RgbColor new_color((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff);
+      if( new_color != pixels.GetPixelColor(pixel) ) {
+        // Serial.printf("set_animation_pixels t=%4ld, c=%06lx\n", t, pixel_color);
+        pixels.SetPixelColor(pixel, new_color);
+        rc = true;
+      }
     }
     prevMode = mode;
-    rc = true;
   }
 
   return rc;
@@ -834,15 +848,14 @@ void setup() {
   wifiSetup();
 
   // Init the neopixels
-  pixels.begin();
-  pixels.setBrightness(255);
+  pixels.Begin();
 
   // Simple neopixel test
-  uint32_t colors[] = { 0x000000, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 };
+  RgbColor colors[] = { RgbColor(0, 0, 0), RgbColor(255, 0, 0), RgbColor(0, 255, 0), RgbColor(0, 0, 255), RgbColor(0, 0, 0) };
   for( size_t color=0; color<sizeof(colors)/sizeof(*colors); color++ ) {
     for( unsigned pixel=0; pixel<NUM_PIXELS; pixel++ ) {
-      pixels.setPixelColor(color&1 ? NUM_PIXELS-1-pixel : pixel, colors[color]);
-      pixels.show();
+      pixels.SetPixelColor(color&1 ? NUM_PIXELS-1-pixel : pixel, colors[color]);
+      pixels.Show();
       delay(500/NUM_PIXELS); // Each color iteration lasts 0.5 seconds
     }
   }
@@ -860,7 +873,7 @@ void setup() {
 
 
 void monitor() {
-  static const uint16_t interval_ms = 60000;
+  static const uint32_t interval_ms = 600000;
   static uint32_t prev_millis = 0;
   uint32_t now = millis();
   if( now - prev_millis >= interval_ms ) {
@@ -879,15 +892,12 @@ void loop() {
   updaterHandle();
 
   // Calcuate new animation values
-
   if( setAnimationPixels(t_ms+msCircle) ) {
-
     // Update neopixel strip
-    //digitalWrite(ONLINE_LED_PIN, LOW);
-    pixels.show();
-    //digitalWrite(ONLINE_LED_PIN, HIGH);
+    pixels.Show();
   }
 
+  // regularly log status
   monitor();
 
   // Keep constant loop interval, if possible
