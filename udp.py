@@ -5,10 +5,10 @@
 import socket
 from time import sleep
 
-UDP_IP = "172.20.10.14"
+UDP_IP = socket.gethostbyname("neoXmas")  # or as string like "172.20.10.14"
 UDP_PORT = ord('N') << 8 | ord('X')
-print "UDP target IP:", UDP_IP
-print "UDP target port:", UDP_PORT
+print("UDP target IP:", UDP_IP)
+print("UDP target port:", UDP_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 leds=50
@@ -48,7 +48,7 @@ while False:
       elif mode < 3*block:
         MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(0)    + chr(maxi)
       else:
-        print mode
+        print(mode)
     sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
     sleep(delay*2)
 
@@ -69,6 +69,6 @@ while True:
       elif mode < 4*block:
         MESSAGE = MESSAGE + chr(i) + chr(0)    + chr(0)    + chr(0)
       else:
-        print mode
+        print(mode)
     sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
     sleep(delay*2)
